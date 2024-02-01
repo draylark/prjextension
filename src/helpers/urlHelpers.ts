@@ -1,11 +1,7 @@
 const FormData = require('form-data');
-import { createReadStream, writeFileSync } from "fs";
+import { createReadStream } from "fs";
 import axios from "axios";
 import * as vscode from 'vscode';
-import path, { join } from "path";
-import AdmZip from "adm-zip";
-import { applyPatch } from "./gitHelpers";
-import simpleGit from "simple-git";
 
 type Data = {
     type: string,
@@ -15,26 +11,21 @@ type Data = {
     localHEAD: string,
     hash: string,
     commitMessage: string,
+    unpushedCommits: string,
+    remoteUrl: string,
 };
 
 
 export const handlePush = async(PAT: string, UID: String, data: Data) => {
-
-    const { type, r, filePath, branch, hash, commitMessage } = data; 
-
-    console.log('Datos recibidos:', data);
+    const { type, remoteUrl, filePath, branch } = data; 
 
     try {
         const formData = new FormData();
 
         // Agregar los campos de texto a la solicitud
-        formData.append('PAT', PAT);
-        formData.append('UID', UID);
         formData.append('type', type);
-        formData.append('remoteUrl', r);
+        formData.append('remoteUrl', remoteUrl);
         formData.append('branch', branch);
-        formData.append('lastCommitHash', hash);
-        formData.append('commitMessage', commitMessage);
 
         // Agregar el archivo
         formData.append('file', createReadStream(filePath));
@@ -42,18 +33,19 @@ export const handlePush = async(PAT: string, UID: String, data: Data) => {
         const config = {
             headers: {
                 ...formData.getHeaders(),
+                'x-pat': PAT, // Agrega el PAT en los headers
+                'x-uid': UID, // Agrega el UID en los headers
             },
         };
+
         console.log('Enviando solicitud de acceso');
         const response = await axios.post('http://localhost:3005/api/git/access-push', formData, config);
-        if (response.data && response.status === 200) {
-            return response.data.message;
-        } else {
-            // Mostrar mensaje de error
-            vscode.window.showErrorMessage(response.data.message);
-        }
+        return response.data;
     } catch (error) {
-        vscode.window.showErrorMessage(error.response.data.message);
+        return {
+            success: false,
+            message: error.response.data.message,
+        };
     }
 };
 
@@ -117,24 +109,64 @@ export const handlePush = async(PAT: string, UID: String, data: Data) => {
 // };
 
 export const handlePull = async(PAT: string, UID: string, data: Data) => {
-    const { type, r, branch } = data; 
+    const { type, remoteUrl, branch } = data; 
 
-    const body = {
-        PAT: PAT,
-        UID: UID,
-        type: type,
-        remoteUrl: r,
-    };
-    
     try {
+
+        const body = {
+            type: type,
+            remoteUrl: remoteUrl,
+            branch: branch,
+        };
+
+        const config = {
+            headers: {
+                'x-pat': PAT, 
+                'x-uid': UID,
+            }
+        };
+
         console.log('Enviando solicitud de acceso');
-        const response = await axios.post('http://localhost:3005/api/git/access-pull', body );
-        const data = response.data;
-        console.log(data);
-        return data;
+        const response = await axios.post('http://localhost:3005/api/git/access-pull', body, config );
+        return response.data;
+
     } catch (error) {
-        console.error('Error al procesar la solicitud de pull:', error);
-        vscode.window.showErrorMessage('Error al procesar la solicitud de pull');
+        return {
+            success: false,
+            message: error.response.data.message,
+        };
+    }
+};
+
+
+
+export const handleClone = async(PAT: string, UID: string, data: Data) => {
+    const { type, remoteUrl, branch } = data; 
+
+    try {
+
+        const body = {
+            type: type,
+            remoteUrl: remoteUrl,
+            branch: branch,
+        };
+
+        const config = {
+            headers: {
+                'x-pat': PAT, 
+                'x-uid': UID,
+            }
+        };
+
+        console.log('Enviando solicitud de acceso');
+        const response = await axios.post('http://localhost:3005/api/git/access-clone', body, config );
+        return response.data;
+
+    } catch (error) {
+        return { 
+            success: false,
+            message: error.response.data.message,
+        };
     }
 };
 

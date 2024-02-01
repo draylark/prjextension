@@ -46,7 +46,6 @@ function activate(context) {
     let authenticateCommand = vscode.commands.registerCommand('extension.authenticate', async () => {
         return await (0, auth_1.authenticate)(context);
     });
-    // Git Commands
     let getEXTUSERDATA = vscode.commands.registerCommand('extension.getEXTDATA', async () => {
         const data = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
         console.log('Impresion desde el comando', data);

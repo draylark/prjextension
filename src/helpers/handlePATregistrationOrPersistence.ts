@@ -27,7 +27,7 @@ export const handlePATregistrationOrPersistence = async(context: vscode.Extensio
         clearSecretStorage(secretStorage);
         return;
     } else if ( PAT ) {
-        console.log('holi')
+        console.log('holi');
         handlePersistence(context, socket, PAT);
         // clearSecretStorage(secretStorage);
         return;

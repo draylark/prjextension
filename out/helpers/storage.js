@@ -123,27 +123,37 @@ const handleCNPMlogin = async (context, socket, NEWNPMSOCKETID, newpat) => {
     const secretStorage = context.secrets;
     const extuser = await (0, exports.getEXTUSERstorage)(context);
     const { NPMUID, NPMSOCKETID } = extuser;
-    if (NPMSOCKETID !== NEWNPMSOCKETID) {
-        await secretStorage.delete('EXTUSERINFO');
-        await secretStorage.delete('personalAccessToken');
-        const EXTUSERINFO = { NPMUID, NPMSOCKETID: NEWNPMSOCKETID };
-        await secretStorage.store('personalAccessToken', newpat);
-        await secretStorage.store('EXTUSERINFO', JSON.stringify(EXTUSERINFO));
+    try {
+        if (NPMSOCKETID !== NEWNPMSOCKETID) {
+            await secretStorage.delete('EXTUSERINFO');
+            await secretStorage.delete('personalAccessToken');
+            const EXTUSERINFO = { NPMUID, NPMSOCKETID: NEWNPMSOCKETID };
+            await secretStorage.store('personalAccessToken', newpat);
+            await secretStorage.store('EXTUSERINFO', JSON.stringify(EXTUSERINFO));
+        }
+    }
+    catch (error) {
+        console.log('hubo un error al guardar la informacion', error);
     }
 };
 exports.handleCNPMlogin = handleCNPMlogin;
 const saveAuthKeys = async (type, data, context) => {
     const secretStorage = context.secrets;
-    switch (type) {
-        case 'S':
-            await secretStorage.store('EXECUTORID', data.EXECUTORID);
-            await secretStorage.store('FRONTENDID', data.FRONTENDID);
-            break;
-        case 'R':
-            await secretStorage.store('EXTDATA', JSON.stringify(data));
-            break;
-        default:
-            break;
+    try {
+        switch (type) {
+            case 'S':
+                await secretStorage.store('EXECUTORID', data.EXECUTORID);
+                await secretStorage.store('FRONTENDID', data.FRONTENDID);
+                break;
+            case 'R':
+                await secretStorage.store('EXTDATA', JSON.stringify(data));
+                break;
+            default:
+                break;
+        }
+    }
+    catch (error) {
+        console.log('hubo un error al guardar la informacion', error);
     }
 };
 exports.saveAuthKeys = saveAuthKeys;

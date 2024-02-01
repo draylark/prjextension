@@ -104,7 +104,7 @@ const authenticate = async (context) => {
         return status;
     }
     catch (error) {
-        server.close(); // Asegúrate de cerrar el servidor en todos los casos
+        server.close();
         if (axios_1.default.isAxiosError(error) && error.response) {
             // Error de Axios con respuesta HTTP
             console.error('Authentication Error', error.response.data);

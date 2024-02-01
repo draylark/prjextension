@@ -1,68 +1,38 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateLastCommitInDatabase = exports.handlePull = exports.handlePush = void 0;
+exports.updateLastCommitInDatabase = exports.handleClone = exports.handlePull = exports.handlePush = void 0;
 const FormData = require('form-data');
 const fs_1 = require("fs");
 const axios_1 = __importDefault(require("axios"));
-const vscode = __importStar(require("vscode"));
 const handlePush = async (PAT, UID, data) => {
-    const { type, r, filePath, branch, hash, commitMessage } = data;
-    console.log('Datos recibidos:', data);
+    const { type, remoteUrl, filePath, branch } = data;
     try {
         const formData = new FormData();
         // Agregar los campos de texto a la solicitud
-        formData.append('PAT', PAT);
-        formData.append('UID', UID);
         formData.append('type', type);
-        formData.append('remoteUrl', r);
+        formData.append('remoteUrl', remoteUrl);
         formData.append('branch', branch);
-        formData.append('lastCommitHash', hash);
-        formData.append('commitMessage', commitMessage);
         // Agregar el archivo
         formData.append('file', (0, fs_1.createReadStream)(filePath));
         const config = {
             headers: {
                 ...formData.getHeaders(),
+                'x-pat': PAT, // Agrega el PAT en los headers
+                'x-uid': UID, // Agrega el UID en los headers
             },
         };
         console.log('Enviando solicitud de acceso');
         const response = await axios_1.default.post('http://localhost:3005/api/git/access-push', formData, config);
-        if (response.data && response.status === 200) {
-            return response.data.message;
-        }
-        else {
-            // Mostrar mensaje de error
-            vscode.window.showErrorMessage(response.data.message);
-        }
+        return response.data;
     }
     catch (error) {
-        vscode.window.showErrorMessage(error.response.data.message);
+        return {
+            success: false,
+            message: error.response.data.message,
+        };
     }
 };
 exports.handlePush = handlePush;
@@ -114,26 +84,57 @@ exports.handlePush = handlePush;
 //     }
 // };
 const handlePull = async (PAT, UID, data) => {
-    const { type, r, branch } = data;
-    const body = {
-        PAT: PAT,
-        UID: UID,
-        type: type,
-        remoteUrl: r,
-    };
+    const { type, remoteUrl, branch } = data;
     try {
+        const body = {
+            type: type,
+            remoteUrl: remoteUrl,
+            branch: branch,
+        };
+        const config = {
+            headers: {
+                'x-pat': PAT,
+                'x-uid': UID,
+            }
+        };
         console.log('Enviando solicitud de acceso');
-        const response = await axios_1.default.post('http://localhost:3005/api/git/access-pull', body);
-        const data = response.data;
-        console.log(data);
-        return data;
+        const response = await axios_1.default.post('http://localhost:3005/api/git/access-pull', body, config);
+        return response.data;
     }
     catch (error) {
-        console.error('Error al procesar la solicitud de pull:', error);
-        vscode.window.showErrorMessage('Error al procesar la solicitud de pull');
+        return {
+            success: false,
+            message: error.response.data.message,
+        };
     }
 };
 exports.handlePull = handlePull;
+const handleClone = async (PAT, UID, data) => {
+    const { type, remoteUrl, branch } = data;
+    try {
+        const body = {
+            type: type,
+            remoteUrl: remoteUrl,
+            branch: branch,
+        };
+        const config = {
+            headers: {
+                'x-pat': PAT,
+                'x-uid': UID,
+            }
+        };
+        console.log('Enviando solicitud de acceso');
+        const response = await axios_1.default.post('http://localhost:3005/api/git/access-clone', body, config);
+        return response.data;
+    }
+    catch (error) {
+        return {
+            success: false,
+            message: error.response.data.message,
+        };
+    }
+};
+exports.handleClone = handleClone;
 const updateLastCommitInDatabase = async (commitHash, UID, PAT, commitMessage) => {
     const body = {
         PAT: PAT,

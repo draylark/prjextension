@@ -14,6 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 
     // Authentication Commands
+    
 
     let getPAT = vscode.commands.registerCommand('extension.getPAT', async () => {
          return await getPATstorage(context);
@@ -27,8 +28,6 @@ export function activate(context: vscode.ExtensionContext) {
         return await authenticate(context);
     });
 
-
-    // Git Commands
 
     let getEXTUSERDATA = vscode.commands.registerCommand('extension.getEXTDATA', async() => {
         const data = await getEXTDATAINFOstorage(context);

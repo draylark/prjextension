@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { io } from 'socket.io-client';
-import { saveAuthKeys, handleAuthExtUserData, handleNPMUSERValidation, getEXTDATAstorage, getPATstorage, handleCNPMlogin, getEXTDATAINFOstorage, getPAT } from '../helpers/storage';
+import { saveAuthKeys, handleNPMUSERValidation, getEXTDATAstorage, getPATstorage, handleCNPMlogin, getEXTDATAINFOstorage, getPAT } from '../helpers/storage';
 import { handlePATregistrationOrPersistence } from '../helpers/handlePATregistrationOrPersistence';
 import { handleAuthResponseAfterReset } from '../helpers/handleAuthResponse';
 import { showAuthenticatingView, displayView, currentPanel } from '../views/views';
@@ -11,11 +11,13 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
   const socket = io('http://localhost:8081');
 
     socket.on('connect', async() => {
-      console.log('Conectado al servidor WebSocket desde la extensión VS Code', socket.id);
+      console.log('Connected to WebSocket server from PrJExtension', socket.id);
       getEXTDATAstorage(context).then( async(authData) => {
         if (authData) { 
+          console.log('AuthData desde el storage', authData);
           await handlePATregistrationOrPersistence(context, socket, authData); 
         } else {
+          console.log('No hay datos de autenticacion');
           const view = showAuthenticatingView(socket.id);
           displayView(view);
         }        
@@ -25,38 +27,66 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
     socket.on('disconnect', (reason) => {
       console.log('Razon de la desconexión', reason);
       if (reason === 'io server disconnect') {
-        // El servidor cerró la conexión, intenta reconectar
         socket.connect();
       };  
-      console.log('Desconectado del servidor socket.');
-      vscode.window.showInformationMessage('Desconectado del servidor socket.');
+      vscode.window.showInformationMessage('Connection problems are occurring, please wait patiently and try again.');
     });
 
 
-
+    // Authentication response handler
     socket.on('authenticationResult', (response) => {
-      // console.log('Response despues de el reinicio de socket', response);
+      console.log('Response despues de el reinicio de socket', response);
       handleAuthResponseAfterReset(response, context, socket.id);
     });
 
+
+    // PrjConsole User login handler ( Updating socketID and PAT )
     socket.on('onCNPMlogin', (data) => {
-      // console.log('Respuesta desde el servidor socket', data);
       if(data.success) {
         handleCNPMlogin(context, socket, data.NPMSOCKETID, data.PAT);
       } else {
-        console.log('Error en el login de CNPM');
+        console.log('Error on CNPM login');
         vscode.window.showInformationMessage(data.message);
       }
     });
     
+
+    // Server reconnection handler
     socket.on('onCNPMreconnected', (data) => {
       if(data.success) {
-        handleCNPMlogin(context, socket, data.user.SOCKETID);
+        handleCNPMlogin(context, socket, data.user.SOCKETID, data.PAT);
         socket.emit('NEWCEXTID', { to: data.user.SOCKETID, CEXTID: socket.id });
       } else {
         console.log('Error al reconectar CNPM');
         vscode.window.showInformationMessage(data.message);
       }
+    });
+
+    // Authentication
+    socket.on('authenticate', async(data) => {
+        getPATstorage(context).then( async(PAT) => {
+            if( PAT ) {
+              socket.emit('authenticationResult', { to: data.EXECUTORID, authStatus: {
+                success: false,
+                message: 'This user is already authenticated, try login instead.',
+              }}); 
+            } else {
+              const authStatus = await vscode.commands.executeCommand('extension.authenticate');        
+                if(authStatus.success && authStatus.user.uid ){    
+                  await saveAuthKeys('S', { EXECUTORID: data.EXECUTORID, FRONTENDID: authStatus.FRONTENDID }, context);        
+                  socket.emit('restartSocket');
+                  return;
+
+                } else {
+                  if (currentPanel) { 
+                      currentPanel.webview.postMessage({ command: 'hideSpinner' }); 
+                      currentPanel.webview.postMessage({ command: 'showAuthResponse', authResponse: authStatus.message, success: authStatus.success });
+                  } 
+                  socket.emit('authenticationResult', { to: data.EXECUTORID, authStatus });  
+                }  
+            }    
+        });        
+
     });
 
 
@@ -65,33 +95,6 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
       switch (data.command) {
         
         // Authentication
-          case 'authenticate':
-              getPATstorage(context).then( async(PAT) => {
-                  if( PAT ) {
-                    socket.emit('authenticationResult', { to: data.EXECUTORID, authStatus: {
-                      success: false,
-                      message: 'This user is already authenticated, try login instead.',
-                    }}); 
-                  } else {
-                    const authStatus = await vscode.commands.executeCommand('extension.authenticate'); 
-                      console.log('Status de la autenticacion desde connection.ts:', authStatus);          
-                      if(authStatus.success && authStatus.user.uid ){    
-
-                        await saveAuthKeys('S', { EXECUTORID: data.EXECUTORID, FRONTENDID: authStatus.FRONTENDID }, context);        
-                        socket.emit('restartSocket');
-                        return;
-
-                      } else {
-                        if (currentPanel) { 
-                            currentPanel.webview.postMessage({ command: 'hideSpinner' }); 
-                            currentPanel.webview.postMessage({ command: 'showAuthResponse', authResponse: authStatus.message, success: authStatus.success });
-                        } 
-                        socket.emit('authenticationResult', { to: data.EXECUTORID, authStatus });  
-                      }  
-                  }    
-              });        
-            break;
-
           case 'getPAT': 
               handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => {
                 if (resp) {
@@ -102,8 +105,7 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
                 }
               });
             break;
-
-          case 'getUSER': 
+          case 'getUSER':          
               handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => {
                 if (resp) {
                   const userdata = await vscode.commands.executeCommand('extension.PRJUID');
@@ -133,15 +135,15 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
               break;
               
           case 'push':    
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => pushToRemote(resp, context) );        
+              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => pushToRemote(resp, context, data.remoteName) );        
               break;
           
           case 'pull':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => pullFromRemote(resp, context) );      
+              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => pullFromRemote(resp, context, data.remoteName) );      
               break;
 
           case 'clone':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => cloneRepository(data.repoUrl, resp, context) );      
+              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => cloneRepository( data.repoUrl, resp, context, data.branch ) );      
               break;
 
           case 'branch':

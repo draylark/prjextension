@@ -90,7 +90,7 @@ export const authenticate = async (context: vscode.ExtensionContext) => {
         return status;
 
     } catch (error) {       
-        server.close(); // Asegúrate de cerrar el servidor en todos los casos
+        server.close();
 
         if (axios.isAxiosError(error) && error.response) {
             // Error de Axios con respuesta HTTP
