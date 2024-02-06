@@ -1,13 +1,18 @@
 import * as vscode from 'vscode';
-import { saveAuthKeys, handleAuthExtUserData } from './storage';
+import { saveTemporalExtData, handleAuthExtUserData, savePersonalUInfo } from './storage';
 import { currentPanel } from '../views/views';
 import { server } from './temporalServer';
+import { Response } from '../types/auth_interfaces';
+import { AuthResponseHandling, PersistanceData} from '../types/auth_interfaces';
 
-export const handleAuthResponse = async (response, FRONTENDID, context: vscode.ExtensionContext) => {
+
+export const handleAuthResponse = async (response: AuthResponseHandling, FRONTENDID: string, context: vscode.ExtensionContext): Promise<Response> => {
     switch (response.status) {
-        case 200: // Éxito
+        case 200: // Success
             const dataToStore = { PAT: response.data.pat, PRJACCUID: response.data.user.uid, name: response.data.user.username, email: response.data.user.email };
-            await saveAuthKeys('R', dataToStore, context);      
+            const personalUInfo = { PRJACCUID: response.data.user.uid, email: response.data.user.email };
+            await saveTemporalExtData(dataToStore, context);     
+            await savePersonalUInfo(personalUInfo, context); 
             return {
                 user: response.data.user,
                 success: true,
@@ -15,7 +20,7 @@ export const handleAuthResponse = async (response, FRONTENDID, context: vscode.E
                 FRONTENDID
             };
 
-        case 404: // No registrado
+        case 404: // Email not registered
             vscode.window.showErrorMessage('The email is not registered');
             return {
                 success: false,
@@ -23,7 +28,7 @@ export const handleAuthResponse = async (response, FRONTENDID, context: vscode.E
                 FRONTENDID
             };
 
-        case 403: // Cuenta suspendida
+        case 403: // Account suspended
             vscode.window.showErrorMessage('The account no longer exists or has been suspended');
             return {
                 success: false,
@@ -32,17 +37,18 @@ export const handleAuthResponse = async (response, FRONTENDID, context: vscode.E
             };
 
         default:
-            // Manejar otros códigos de estado o errores inesperados
+            // Handle unexpected errors
             vscode.window.showErrorMessage('Unexpected error during authentication');
             return {
                 success: false,
-                message: 'Unexpected error during authentication'
+                message: 'Unexpected error during authentication',
+                FRONTENDID
             };
     }
 };
 
 
-export const handleAuthResponseAfterReset = async (response, context: vscode.ExtensionContext, socketID) => {
+export const handleAuthResponseAfterReset = async (response: PersistanceData, context: vscode.ExtensionContext, socketID: string) => {
     if( !response.success ) {   
         if( server && server.listening ) { server.close(); }              
         if (currentPanel) {
@@ -56,7 +62,9 @@ export const handleAuthResponseAfterReset = async (response, context: vscode.Ext
             currentPanel.webview.postMessage({ command: 'hideSpinner' });
             currentPanel.webview.postMessage({ command: 'showAuthResponse', authResponse: `${response.message}, you can close this window now.`, success: response.success });
         }
-        handleAuthExtUserData(response.user, context);
-    }
+        
+        vscode.window.showInformationMessage(response.message);
+        await handleAuthExtUserData(response.user, context);
+    };
 };
 

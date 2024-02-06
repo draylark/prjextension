@@ -27,9 +27,8 @@ exports.handlePATregistrationOrPersistence = exports.handlePersistence = void 0;
 const vscode = __importStar(require("vscode"));
 const storage_1 = require("./storage");
 const handlePersistence = async (context, socket, PAT) => {
-    socket.emit('startPersistance', { type: 'EXT', PAT, SOCKETID: socket.id }, async (resp) => {
-        if (resp) {
-            console.log('Impresion desde handle persistance', resp);
+    socket.emit('onExtPersistance', { type: 'EXT', PAT, SOCKETID: socket.id }, async (resp) => {
+        if (resp && resp.success === true) {
             await (0, storage_1.handleAuthExtUserData)(resp.user, context);
         }
         else {
@@ -42,16 +41,14 @@ const handlePATregistrationOrPersistence = async (context, socket, authData) => 
     const secretStorage = context.secrets;
     const { EXECUTORID, FRONTENDID, extdata, PAT } = authData;
     if (extdata && EXECUTORID && FRONTENDID) {
+        // Case: Registration
         const data = { to: EXECUTORID, authStatus: { success: true, message: 'Autenticación exitosa', FRONTENDID }, extdata: { SOCKETID: socket.id, newuser: extdata } };
         socket.emit('authenticationResult', data);
         (0, storage_1.clearSecretStorage)(secretStorage);
-        return;
     }
     else if (PAT) {
-        console.log('holi');
-        (0, exports.handlePersistence)(context, socket, PAT);
-        // clearSecretStorage(secretStorage);
-        return;
+        // Case: Persistence
+        await (0, exports.handlePersistence)(context, socket, PAT);
     }
 };
 exports.handlePATregistrationOrPersistence = handlePATregistrationOrPersistence;

@@ -4,9 +4,11 @@ import archiver from "archiver";
 import globby from "globby";
 import { handlePull, handlePush, handleClone } from "./urlHelpers";
 import * as vscode from 'vscode';
+import { SimpleGit } from "simple-git";
+import { ReqData } from "../types/commands_types";
+import { isReqCloneData, isReqPullData, isReqPushData } from "../types/checkers";
 
-
-export const packageRepository = ( workspaceFolderPath ) => {
+export const packageRepository = ( workspaceFolderPath: string ): Promise<string> => {
     return new Promise(async (resolve, reject) => {
         const outputPath = path.join(workspaceFolderPath, 'repository.zip');
         const output = createWriteStream(outputPath);
@@ -36,23 +38,29 @@ export const packageRepository = ( workspaceFolderPath ) => {
     });
 };
 
-export const requestAccess = async ( PAT, UID, type, data ) => { 
+export const requestAccess = async ( PAT: string, UID: string, type: string, data: ReqData ) => { 
     switch (type) {
         case 'push':    
-            return await handlePush(PAT, UID, data);
+            if (isReqPushData(data)) {
+                return await handlePush(PAT, UID, data);
+            };
             break;
         case 'pull':
-            return await handlePull(PAT, UID, data);
+            if (isReqPullData(data)) {
+                return await handlePull(PAT, UID, data);
+            };
             break;   
         case 'clone':
-            return await handleClone(PAT, UID, data);
+            if (isReqCloneData(data)) {
+                return await handleClone(PAT, UID, data);
+            };
             break;
         default:
             break;
     }
 };
 
-export const handlePullAccess = async ( access, branch, git ) => {
+export const handlePullAccess = async ( access: string, branch: string, git: SimpleGit, workspaceFolderPath: string ) => {
     try {
         const commandParts = ['pull', access, branch]; 
         await git.raw(commandParts);
@@ -69,7 +77,7 @@ export const handlePullAccess = async ( access, branch, git ) => {
     };
 };
 
-export const handleCloneAccess = async ( access, git, repoName, workspaceFolderPath, branch ) => {
+export const handleCloneAccess = async ( access: string, git: SimpleGit, repoName: string, workspaceFolderPath: string, branch: string | undefined ) => {
     try {
         // Verificar la existencia de la rama en el repositorio remoto
         const remoteBranches = await git.listRemote(['--heads', access]);

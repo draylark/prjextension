@@ -31,6 +31,7 @@ const vscode = __importStar(require("vscode"));
 const simple_git_1 = __importDefault(require("simple-git"));
 const storage_1 = require("./storage");
 const gitHelpers_1 = require("./gitHelpers");
+const fs_1 = require("fs");
 const getRemoteUrl = async (git, remoteName) => {
     const remotes = await git.getRemotes(true);
     const remote = remotes.find(r => r.name === remoteName);
@@ -38,29 +39,31 @@ const getRemoteUrl = async (git, remoteName) => {
 };
 const initGitRepository = async (status) => {
     if (status) {
-        // Verificar si hay carpetas en el espacio de trabajo
         if (vscode.workspace.workspaceFolders) {
-            // Utiliza la primera carpeta del espacio de trabajo
             const workspaceFolder = vscode.workspace.workspaceFolders[0];
             const workspaceFolderPath = workspaceFolder.uri.fsPath;
             try {
-                // Crea una instancia de simple-git para el directorio del espacio de trabajo
+                // Creates a new simple-git instance in the current working directory
                 const git = (0, simple_git_1.default)(workspaceFolderPath);
-                // Inicializa un nuevo repositorio Git en el directorio del espacio de trabajo
+                // Initialize a new Git repository in the current working directory
                 await git.init();
                 vscode.window.showInformationMessage('Git repository successfully initialized in the workspace.');
             }
             catch (error) {
-                vscode.window.showErrorMessage(`There was an error initializing the Git repository: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while initializing the Git repository.';
+                vscode.window.showErrorMessage(`Error initializing the Git repository: ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
     }
+    ;
 };
 exports.initGitRepository = initGitRepository;
 const addFilesToGit = async (status) => {
@@ -70,26 +73,30 @@ const addFilesToGit = async (status) => {
             const workspaceFolderPath = workspaceFolder.uri.fsPath;
             try {
                 const git = (0, simple_git_1.default)(workspaceFolderPath);
-                // Verificar si el directorio es un repositorio Git
+                // Checks if the current working directory is a Git repository
                 const isRepo = await git.checkIsRepo();
                 if (!isRepo) {
                     return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
                 }
-                // Agregar archivos al staging
+                // Add all files to the staging area
                 await git.add('.');
                 vscode.window.showInformationMessage('Files successfully added to staging.');
             }
             catch (error) {
-                vscode.window.showErrorMessage(`There was an error adding the files to staging: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while adding files to staging.';
+                vscode.window.showErrorMessage(`Error adding files to staging: ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
     }
+    ;
 };
 exports.addFilesToGit = addFilesToGit;
 const commitChanges = async (commitMessage, status) => {
@@ -99,38 +106,44 @@ const commitChanges = async (commitMessage, status) => {
             const workspaceFolderPath = workspaceFolder.uri.fsPath;
             try {
                 const git = (0, simple_git_1.default)(workspaceFolderPath);
-                // Verificar si el directorio es un repositorio Git
                 const isRepo = await git.checkIsRepo();
                 if (!isRepo) {
                     return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
                 }
-                // Verificar si hay un merge en progreso
+                ;
+                // Check if a merge is in progress
                 const mergeInProgress = await git.raw(['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']);
                 if (mergeInProgress) {
                     await git.commit(commitMessage);
                     vscode.window.showInformationMessage(`Merge successfully committed with message: "${commitMessage}"`);
                     return;
                 }
-                // Obtener el estado del repositorio
+                ;
+                // Get the status of the working directory
                 const status = await git.status();
                 if (status.files.length === 0) {
                     return vscode.window.showInformationMessage('There are no changes to commit. No files were added to the staging area.');
                 }
-                // Realizar un commit con el mensaje proporcionado
+                ;
+                // Commit the changes with the specified message
                 await git.commit(commitMessage);
                 vscode.window.showInformationMessage(`Changes successfully committed with message: "${commitMessage}"`);
             }
             catch (error) {
-                vscode.window.showErrorMessage(`There was an error committing the changes: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while committing the changes.';
+                vscode.window.showErrorMessage(`Error committing the changes: ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
     }
+    ;
 };
 exports.commitChanges = commitChanges;
 const handleRemotes = async (data, status, socket, context) => {
@@ -146,54 +159,65 @@ const handleRemotes = async (data, status, socket, context) => {
             const workspaceFolder = vscode.workspace.workspaceFolders[0];
             const workspaceFolderPath = workspaceFolder.uri.fsPath;
             const git = (0, simple_git_1.default)(workspaceFolderPath);
-            // Verificar si el directorio es un repositorio Git
             const isRepo = await git.checkIsRepo();
             if (!isRepo) {
                 return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
             }
-            switch (data.type) {
-                case 'get':
-                    const remotes = await git.getRemotes(true);
-                    socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes });
-                    break;
-                case 'add':
-                    const existingRemotes = await git.getRemotes(true);
-                    const isRemoteExist = existingRemotes.some(remote => remote.name === data.remoteName);
-                    if (!isRemoteExist) {
-                        await git.addRemote(data.remoteName, data.remoteUrl);
-                        socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
-                        vscode.window.showInformationMessage(`Remote '${data.remoteName}' successfully added.`);
-                    }
-                    else {
-                        socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
-                        vscode.window.showInformationMessage(`The remote '${data.remoteName}' already exists and therefore cannot be added.`);
-                    }
-                    break;
-                case 'remove':
-                    const existingRemotesForRemove = await git.getRemotes(true);
-                    const isRemoteExistForRemove = existingRemotesForRemove.some(remote => remote.name === data.remoteName);
-                    if (isRemoteExistForRemove) {
-                        await git.removeRemote(data.remoteName);
-                        socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
-                        vscode.window.showInformationMessage(`Remote '${data.remoteName}' successfully removed.`);
-                    }
-                    else {
-                        socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
-                        vscode.window.showInformationMessage(`The remote '${data.remoteName}' does not exist and therefore cannot be removed.`);
-                    }
-                    break;
-                default:
-                    break;
+            ;
+            try {
+                switch (data.type) {
+                    case 'get':
+                        const remotes = await git.getRemotes(true);
+                        socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes });
+                        break;
+                    case 'add':
+                        const addData = data;
+                        const existingRemotes = await git.getRemotes(true);
+                        const isRemoteExist = existingRemotes.some(remote => remote.name === addData.remoteName);
+                        if (!isRemoteExist) {
+                            await git.addRemote(addData.remoteName, addData.remoteUrl);
+                            socket.emit('remotesList', { to: addData.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
+                            vscode.window.showInformationMessage(`Remote '${addData.remoteName}' successfully added.`);
+                        }
+                        else {
+                            socket.emit('remotesList', { to: addData.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
+                            vscode.window.showInformationMessage(`The remote '${addData.remoteName}' already exists and therefore cannot be added.`);
+                        }
+                        break;
+                    case 'remove':
+                        const removeData = data;
+                        const existingRemotesForRemove = await git.getRemotes(true);
+                        const isRemoteExistForRemove = existingRemotesForRemove.some(remote => remote.name === removeData.remoteName);
+                        if (isRemoteExistForRemove) {
+                            await git.removeRemote(removeData.remoteName);
+                            socket.emit('remotesList', { to: removeData.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
+                            vscode.window.showInformationMessage(`Remote '${removeData.remoteName}' successfully removed.`);
+                        }
+                        else {
+                            socket.emit('remotesList', { to: removeData.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
+                            vscode.window.showInformationMessage(`The remote '${removeData.remoteName}' does not exist and therefore cannot be removed.`);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                ;
+            }
+            catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while handling the remotes.';
+                vscode.window.showErrorMessage(`Error handling remotes: ${errorMessage}`);
             }
             ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
     }
+    ;
 };
 exports.handleRemotes = handleRemotes;
 const pushToRemote = async (status, context, remoteName) => {
@@ -221,10 +245,12 @@ const pushToRemote = async (status, context, remoteName) => {
             if (!selectedRemoteName && remotes.length === 1) {
                 selectedRemoteName = remotes[0].name;
             }
+            ;
             // Si no se ha seleccionado un remoto y hay múltiples remotos, usar 'origin' por defecto
             if (!selectedRemoteName) {
                 selectedRemoteName = 'origin';
             }
+            ;
             // Obtener la URL del remoto configurada
             const remoteUrl = await getRemoteUrl(git, selectedRemoteName);
             if (!remoteUrl) {
@@ -235,12 +261,16 @@ const pushToRemote = async (status, context, remoteName) => {
                     `- There might be an issue with the local repository configuration. ` +
                     `- If you are expecting 'origin' to be the default remote, check that it is properly configured executing 'remote' command in the interactive console.`);
             }
+            ;
             const branchSummary = await git.branchLocal();
             const filePath = await (0, gitHelpers_1.packageRepository)(workspaceFolderPath);
             const data = { type, remoteUrl, filePath, branch: branchSummary.current, };
             (0, gitHelpers_1.requestAccess)(PAT, UID, type, data).then(async (access) => {
                 if (access.success) {
                     vscode.window.showInformationMessage(access.message || 'Push executed successfully.');
+                    (0, fs_1.unlink)(filePath, (err) => { if (err) {
+                        throw err;
+                    } });
                 }
                 else {
                     vscode.window.showErrorMessage(access.message || `The server does not allow to execute the ${type}.`);
@@ -250,6 +280,7 @@ const pushToRemote = async (status, context, remoteName) => {
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
@@ -275,6 +306,7 @@ const pullFromRemote = async (status, context, remoteName) => {
             if (!isRepo) {
                 return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
             }
+            ;
             // Obtener la lista de remotos configurados
             const remotes = await git.getRemotes();
             let selectedRemoteName = remoteName;
@@ -282,10 +314,12 @@ const pullFromRemote = async (status, context, remoteName) => {
             if (!selectedRemoteName && remotes.length === 1) {
                 selectedRemoteName = remotes[0].name;
             }
+            ;
             // Si no se ha seleccionado un remoto y hay múltiples remotos, usar 'origin' por defecto
             if (!selectedRemoteName) {
                 selectedRemoteName = 'origin';
             }
+            ;
             // Obtener la URL del remoto configurada
             const remoteUrl = await getRemoteUrl(git, selectedRemoteName);
             if (!remoteUrl) {
@@ -296,6 +330,7 @@ const pullFromRemote = async (status, context, remoteName) => {
                     `- There might be an issue with the local repository configuration. ` +
                     `- If you are expecting 'origin' to be the default remote, check that it is properly configured executing 'remote' command in the interactive console.`);
             }
+            ;
             const branchSummary = await git.branchLocal();
             const data = { type, remoteUrl, branch: branchSummary.current };
             (0, gitHelpers_1.requestAccess)(PAT, UID, type, data).then(async (access) => {
@@ -310,6 +345,7 @@ const pullFromRemote = async (status, context, remoteName) => {
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
@@ -368,18 +404,22 @@ const listBranch = async (status, context, socket, SOCKETID) => {
             if (!isRepo) {
                 return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
             }
+            ;
             try {
                 // Obtener la lista de ramas locales
                 const branchSummary = await git.branchLocal();
                 socket.emit('branchList', { to: SOCKETID, branchSummary });
             }
             catch (error) {
-                vscode.window.showErrorMessage(`There was an error listing the branches: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while listing branches.';
+                vscode.window.showErrorMessage(`Error listing branches: ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
@@ -404,6 +444,7 @@ const createBranch = async (status, context, socket, SOCKETID, branchName) => {
             if (!isRepo) {
                 return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
             }
+            ;
             try {
                 // Crear la nueva rama
                 await git.checkoutLocalBranch(branchName);
@@ -414,12 +455,15 @@ const createBranch = async (status, context, socket, SOCKETID, branchName) => {
                 vscode.window.showInformationMessage(`Branch '${branchName}' created successfully.`);
             }
             catch (error) {
-                vscode.window.showErrorMessage(`There was an error creating the branch: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while creating the branch.';
+                vscode.window.showErrorMessage(`Error creating branch '${branchName}': ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
@@ -443,6 +487,7 @@ const checkoutBranch = async (status, context, socket, SOCKETID, branchName) => 
             if (!isRepo) {
                 return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
             }
+            ;
             try {
                 // Cambiar a la rama especificada
                 await git.checkout(branchName);
@@ -452,8 +497,10 @@ const checkoutBranch = async (status, context, socket, SOCKETID, branchName) => 
                 vscode.window.showInformationMessage(`Switched to branch '${branchName}' successfully.`);
             }
             catch (error) {
-                vscode.window.showErrorMessage(`There was an error switching to the branch: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while switching branches.';
+                vscode.window.showErrorMessage(`Error switching to branch '${branchName}': ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
@@ -481,21 +528,33 @@ const deleteBranch = async (status, context, socket, SOCKETID, branchName) => {
             if (!isRepo) {
                 return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
             }
+            ;
             try {
-                // Eliminar la rama especificada
-                await git.deleteLocalBranch(branchName);
-                // Obtener la lista actualizada de ramas locales
+                // Obtener la lista actual de ramas locales
                 const branchSummary = await git.branchLocal();
-                socket.emit('branchList', { to: SOCKETID, branchSummary });
-                vscode.window.showInformationMessage(`Branch '${branchName}' deleted successfully.`);
+                if (branchSummary.all.includes(branchName) && branchName !== branchSummary.current) {
+                    await git.deleteLocalBranch(branchName, true); // El segundo argumento `true` fuerza la eliminación si es necesario
+                    vscode.window.showInformationMessage(`Branch '${branchName}' deleted successfully.`);
+                    const updatedBranchSummary = await git.branchLocal();
+                    socket.emit('branchList', { to: SOCKETID, branchSummary: updatedBranchSummary });
+                }
+                else {
+                    const branchSummary = await git.branchLocal();
+                    socket.emit('branchList', { to: SOCKETID, branchSummary: branchSummary });
+                    vscode.window.showErrorMessage(`The branch '${branchName}' does not exist in the local repository, or it is the current branch and therefore cannot be deleted.`);
+                }
+                ;
             }
             catch (error) {
-                vscode.window.showErrorMessage(`Error deleting branch: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while deleting the branch.';
+                vscode.window.showErrorMessage(`Error deleting branch '${branchName}': ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
         }
+        ;
     }
     else {
         vscode.window.showErrorMessage('NPM user not validated.');
@@ -519,6 +578,7 @@ const status = async (status, context, socket, SOCKETID) => {
             if (!isRepo) {
                 return vscode.window.showErrorMessage('There is no Git repository initialized in this directory.');
             }
+            ;
             try {
                 // Obtener el estado del repositorio
                 let merging = '';
@@ -531,8 +591,10 @@ const status = async (status, context, socket, SOCKETID) => {
                 socket.emit('status', { to: SOCKETID, status, merging });
             }
             catch (error) {
-                vscode.window.showErrorMessage(`There was an error getting the status: ${error.message}`);
+                const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while retrieving the repository status.';
+                vscode.window.showErrorMessage(`Error retrieving the repository status: ${errorMessage}`);
             }
+            ;
         }
         else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');

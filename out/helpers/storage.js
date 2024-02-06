@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clearSecretStorage2 = exports.clearSecretStorage = exports.saveAuthKeys = exports.handleCNPMlogin = exports.handleNPMUSERValidation = exports.handleAuthExtUserData = exports.getPAT = exports.getEXTDATAINFOstorage = exports.getEXTUSERstorage = exports.getEXTDATAstorage = exports.getPATstorage = void 0;
+exports.clearFullExtData = exports.clearSecretStorage = exports.saveClientsIDs = exports.getPersonaForDeletionlUInfo = exports.getPersonalUInfo = exports.savePersonalUInfo = exports.saveTemporalExtData = exports.handlePrJCUlogin = exports.handleNPMUSERValidation = exports.handleAuthExtUserData = exports.getPAT = exports.getEXTDATAINFOstorage = exports.getEXTUSERstorage = exports.getEXTDATAstorage = exports.getPATstorage = void 0;
 const vscode = __importStar(require("vscode"));
 const getPATstorage = async (context) => {
     const secretStorage = context.secrets;
@@ -32,7 +32,6 @@ const getPATstorage = async (context) => {
         return pat;
     }
     else {
-        vscode.window.showInformationMessage('No PAT found.');
         return null;
     }
 };
@@ -51,7 +50,6 @@ const getEXTDATAstorage = async (context) => {
         return { PAT };
     }
     else {
-        // vscode.window.showInformationMessage('No user data found.');
         return null;
     }
 };
@@ -93,6 +91,7 @@ const getPAT = async (context) => {
     }
 };
 exports.getPAT = getPAT;
+// Saving user data after login
 const handleAuthExtUserData = async (user, context) => {
     const { NPMUID, NPMSOCKETID, PAT, PRJACCUID, ...rest } = user;
     const secretStorage = context.secrets;
@@ -102,8 +101,10 @@ const handleAuthExtUserData = async (user, context) => {
     await secretStorage.store('personalAccessToken', PAT);
 };
 exports.handleAuthExtUserData = handleAuthExtUserData;
-const handleNPMUSERValidation = async (npmuser, context) => {
+// Validating PrJConsole user
+const handleNPMUSERValidation = async (data, context) => {
     const extuser = await (0, exports.getEXTUSERstorage)(context);
+    const npmuser = data.NPMUSER;
     if (extuser) {
         const { NPMUID, NPMSOCKETID } = extuser;
         if (npmuser.uid === NPMUID && npmuser.SOCKETID === NPMSOCKETID) {
@@ -119,7 +120,8 @@ const handleNPMUSERValidation = async (npmuser, context) => {
     }
 };
 exports.handleNPMUSERValidation = handleNPMUSERValidation;
-const handleCNPMlogin = async (context, socket, NEWNPMSOCKETID, newpat) => {
+// Updating socketID and PAT after login
+const handlePrJCUlogin = async (context, socket, NEWNPMSOCKETID, newpat) => {
     const secretStorage = context.secrets;
     const extuser = await (0, exports.getEXTUSERstorage)(context);
     const { NPMUID, NPMSOCKETID } = extuser;
@@ -136,27 +138,62 @@ const handleCNPMlogin = async (context, socket, NEWNPMSOCKETID, newpat) => {
         console.log('hubo un error al guardar la informacion', error);
     }
 };
-exports.handleCNPMlogin = handleCNPMlogin;
-const saveAuthKeys = async (type, data, context) => {
+exports.handlePrJCUlogin = handlePrJCUlogin;
+const saveTemporalExtData = async (data, context) => {
     const secretStorage = context.secrets;
     try {
-        switch (type) {
-            case 'S':
-                await secretStorage.store('EXECUTORID', data.EXECUTORID);
-                await secretStorage.store('FRONTENDID', data.FRONTENDID);
-                break;
-            case 'R':
-                await secretStorage.store('EXTDATA', JSON.stringify(data));
-                break;
-            default:
-                break;
-        }
+        await secretStorage.store('EXTDATA', JSON.stringify(data));
     }
     catch (error) {
-        console.log('hubo un error al guardar la informacion', error);
+        console.log('There was an error saving the information', error);
     }
 };
-exports.saveAuthKeys = saveAuthKeys;
+exports.saveTemporalExtData = saveTemporalExtData;
+const savePersonalUInfo = async (data, context) => {
+    const secretStorage = context.secrets;
+    try {
+        await secretStorage.store('PRJUSERINFO', JSON.stringify(data));
+    }
+    catch (error) {
+        console.log('There was an error saving the information', error);
+    }
+};
+exports.savePersonalUInfo = savePersonalUInfo;
+const getPersonalUInfo = async (context) => {
+    const secretStorage = context.secrets;
+    const personalUInfo = await secretStorage.get('PRJUSERINFO');
+    if (!personalUInfo) {
+        vscode.window.showInformationMessage('No personal information found.');
+    }
+    else {
+        const { PRJACCUID, email } = JSON.parse(personalUInfo);
+        vscode.window.showInformationMessage(`PrJManager ID: ${PRJACCUID}, Email: ${email}`);
+    }
+};
+exports.getPersonalUInfo = getPersonalUInfo;
+const getPersonaForDeletionlUInfo = async (context) => {
+    const secretStorage = context.secrets;
+    const personalUInfo = await secretStorage.get('PRJUSERINFO');
+    if (!personalUInfo) {
+        vscode.window.showInformationMessage('No personal information found.');
+    }
+    else {
+        const { PRJACCUID } = JSON.parse(personalUInfo);
+        return PRJACCUID;
+    }
+};
+exports.getPersonaForDeletionlUInfo = getPersonaForDeletionlUInfo;
+const saveClientsIDs = async (data, context) => {
+    const secretStorage = context.secrets;
+    try {
+        await secretStorage.store('EXECUTORID', data.EXECUTORID);
+        await secretStorage.store('FRONTENDID', data.FRONTENDID);
+    }
+    catch (error) {
+        console.log('There was an error saving the information', error);
+    }
+};
+exports.saveClientsIDs = saveClientsIDs;
 const clearSecretStorage = async (secretStorage) => {
     const secretKeys = ['EXTDATA', 'EXECUTORID', 'FRONTENDID',]; // Las claves que conoces y has usado
     for (const key of secretKeys) {
@@ -164,11 +201,24 @@ const clearSecretStorage = async (secretStorage) => {
     }
 };
 exports.clearSecretStorage = clearSecretStorage;
-const clearSecretStorage2 = async (secretStorage) => {
-    const secretKeys = ['EXTDATA', 'EXECUTORID', 'FRONTENDID', 'personalAccessToken', 'EXTUSERINFO']; // Las claves que conoces y has usado
+const clearFullExtData = async (secretStorage) => {
+    const secretKeys = ['EXTDATA', 'EXECUTORID', 'FRONTENDID', 'personalAccessToken', 'EXTUSERINFO', 'PRJUSERINFO'];
+    let dataDeleted = false; // Variable para rastrear si se ha borrado algún dato
     for (const key of secretKeys) {
-        await secretStorage.delete(key);
+        const secretValue = await secretStorage.get(key); // Intenta leer la clave
+        if (secretValue !== undefined) { // Si la clave existe
+            await secretStorage.delete(key); // Solo entonces borra la clave
+            dataDeleted = true; // Marca que hemos borrado datos
+        }
+    }
+    // Mensaje condicional basado en si se borraron datos o no
+    if (dataDeleted) {
+        vscode.window.showInformationMessage('User data deleted successfully.');
+        return true;
+    }
+    else {
+        return false;
     }
 };
-exports.clearSecretStorage2 = clearSecretStorage2;
+exports.clearFullExtData = clearFullExtData;
 //# sourceMappingURL=storage.js.map

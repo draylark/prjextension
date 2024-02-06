@@ -20,32 +20,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "extension.joinSocketRoom",
-        "title": "prj joinRoom"
-      },
-      {
-        "command": "extension.authenticate",
-        "title": "authenticate"
-      },
-      {
-        "command": "extension.login",
-        "title": "login"
-      },
-      {
-        "command": "extension.openTerminal",
-        "title": "prj openTerminal"
-      },
-      {
-        "command": "extension.getPAT",
-        "title": "getPAT"
-      },
-      {
-        "command": "extension.PRJUID",
-        "title": "getPRJUID"
-      },
-      {
-        "command": "extension.getEXTDATA",
-        "title": "getEXTDATA"
+        "command": "extension.interactiveMenu",
+        "title": "Show Interactive Menu"
       }
     ]
   },
@@ -78,6 +54,7 @@
     "typescript": "^5.3.2"
   },
   "dependencies": {
+    "@types/socket.io-client": "^3.0.0",
     "adm-zip": "^0.5.10",
     "archiver": "^6.0.1",
     "axios": "^1.6.2",

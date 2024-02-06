@@ -1,36 +1,52 @@
 import * as vscode from 'vscode';
-import { io } from 'socket.io-client';
-import { saveAuthKeys, handleNPMUSERValidation, getEXTDATAstorage, getPATstorage, handleCNPMlogin, getEXTDATAINFOstorage, getPAT } from '../helpers/storage';
+import { io, Socket } from 'socket.io-client';
+import { handleNPMUSERValidation, getEXTDATAstorage, getPATstorage, handlePrJCUlogin, saveClientsIDs } from '../helpers/storage';
 import { handlePATregistrationOrPersistence } from '../helpers/handlePATregistrationOrPersistence';
 import { handleAuthResponseAfterReset } from '../helpers/handleAuthResponse';
 import { showAuthenticatingView, displayView, currentPanel } from '../views/views';
-import {  initGitRepository, addFilesToGit, commitChanges, handleRemotes, pushToRemote, pullFromRemote, cloneRepository, listBranch, createBranch, checkoutBranch, status } from '../helpers/git';
+import {  initGitRepository, addFilesToGit, commitChanges, handleRemotes, pushToRemote, pullFromRemote, cloneRepository, listBranch, createBranch, deleteBranch, checkoutBranch, status } from '../helpers/git';
+import { AuthResponse } from '../types/auth_interfaces';
+import { PushCommand, PullCommand, CloneCommand, CommitCommand, RemoteCommand, CommandData, BranchCommand, CommonCommand } from '../types/commands_interfaces';
+import { AuthData } from '../types/storage_types';
 
-const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
+export const disconnectSocket = async( socket: Socket ) => {
+  if(socket && socket.connected) {
+    try {
+      socket.disconnect();
+      vscode.window.showInformationMessage('Connection closed.'); 
+    } catch (error) {
+      vscode.window.showInformationMessage('Error during disconnection.');
+    }
+  } else {
+    vscode.window.showInformationMessage('No active connection found.');
+  }
+};
 
-  const socket = io('http://localhost:8081');
+
+export const connectToWebSocket = (context: vscode.ExtensionContext ) => {
+  return new Promise((resolve, reject) => {
+
+    const socket = io('http://localhost:8081');
 
     socket.on('connect', async() => {
-      console.log('Connected to WebSocket server from PrJExtension', socket.id);
       getEXTDATAstorage(context).then( async(authData) => {
-        if (authData) { 
-          console.log('AuthData desde el storage', authData);
-          await handlePATregistrationOrPersistence(context, socket, authData); 
+        if ( authData && authData !== null ) { 
+          await handlePATregistrationOrPersistence(context, socket, authData);
+          resolve(socket); 
         } else {
-          console.log('No hay datos de autenticacion');
           const view = showAuthenticatingView(socket.id);
           displayView(view);
+          resolve(socket);
         }        
       });
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('Razon de la desconexión', reason);
       if (reason === 'io server disconnect') {
         socket.connect();
       };  
-      vscode.window.showInformationMessage('Connection problems are occurring, please wait patiently and try again.');
     });
+
 
 
     // Authentication response handler
@@ -41,26 +57,26 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
 
 
     // PrjConsole User login handler ( Updating socketID and PAT )
-    socket.on('onCNPMlogin', (data) => {
+    socket.on('OnPrJCUPersistance', (data) => {
       if(data.success) {
-        handleCNPMlogin(context, socket, data.NPMSOCKETID, data.PAT);
+        handlePrJCUlogin(context, socket, data.NPMSOCKETID, data.PAT);
       } else {
-        console.log('Error on CNPM login');
         vscode.window.showInformationMessage(data.message);
       }
     });
-    
+
 
     // Server reconnection handler
-    socket.on('onCNPMreconnected', (data) => {
+    socket.on('onReestablishingConnection', (data) => {
       if(data.success) {
-        handleCNPMlogin(context, socket, data.user.SOCKETID, data.PAT);
+        handlePrJCUlogin(context, socket, data.user.SOCKETID, data.PAT);
         socket.emit('NEWCEXTID', { to: data.user.SOCKETID, CEXTID: socket.id });
       } else {
-        console.log('Error al reconectar CNPM');
         vscode.window.showInformationMessage(data.message);
       }
     });
+
+
 
     // Authentication
     socket.on('authenticate', async(data) => {
@@ -71,95 +87,97 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
                 message: 'This user is already authenticated, try login instead.',
               }}); 
             } else {
-              const authStatus = await vscode.commands.executeCommand('extension.authenticate');        
-                if(authStatus.success && authStatus.user.uid ){    
-                  await saveAuthKeys('S', { EXECUTORID: data.EXECUTORID, FRONTENDID: authStatus.FRONTENDID }, context);        
+              const authResponse: AuthResponse = await vscode.commands.executeCommand('extension.authenticate');        
+                if(authResponse.success && authResponse.user.uid ){    
+                  await saveClientsIDs({ EXECUTORID: data.EXECUTORID, FRONTENDID: authResponse.FRONTENDID }, context);        
                   socket.emit('restartSocket');
-                  return;
-
                 } else {
                   if (currentPanel) { 
                       currentPanel.webview.postMessage({ command: 'hideSpinner' }); 
-                      currentPanel.webview.postMessage({ command: 'showAuthResponse', authResponse: authStatus.message, success: authStatus.success });
+                      currentPanel.webview.postMessage({ command: 'showAuthResponse', authResponse: authResponse.message, success: authResponse.success });
                   } 
-                  socket.emit('authenticationResult', { to: data.EXECUTORID, authStatus });  
+                  socket.emit('authenticationResult', { to: data.EXECUTORID, authStatus: authResponse });  
                 }  
             }    
         });        
 
     });
 
-
-    socket.on('command', async(data) => {
+    // Git commands    
+    socket.on('command', async(data: CommandData) => {
 
       switch (data.command) {
-        
-        // Authentication
-          case 'getPAT': 
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => {
+      
+          case 'verify': 
+              const verifyData = data as CommonCommand;
+              handleNPMUSERValidation(verifyData, context).then( async(resp) => {
                 if (resp) {
-                  const PAT = await vscode.commands.executeCommand('extension.getPAT');
-                  console.log('Impresion desde la extension', PAT);
+                  vscode.window.showInformationMessage('Connection established successfully, you can start executing your commands. :)');
                 } else {
                   vscode.window.showInformationMessage('NPM user not validated.');
                 }
               });
-            break;
-          case 'getUSER':          
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => {
-                if (resp) {
-                  const userdata = await vscode.commands.executeCommand('extension.PRJUID');
-                  console.log('Impresion desde la extension', userdata);
-                } else {
-                  vscode.window.showInformationMessage('NPM user not validated.');
-                }
-            });          
           break;
-
 
         // Git
           case 'init':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => initGitRepository(resp) );
+              const initData = data as CommandData;
+              handleNPMUSERValidation(initData, context).then( async(resp) => initGitRepository(resp) );
               break;
 
           case 'add':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => addFilesToGit(resp) );
+              const addData = data as CommandData;
+              handleNPMUSERValidation(addData, context).then( async(resp) => addFilesToGit(resp) );
               break;    
 
           case 'commit':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => commitChanges(data.commitMessage, resp) );
+              const commitData = data as CommitCommand;
+              handleNPMUSERValidation(commitData, context).then( async(resp) => commitChanges(commitData.commitMessage, resp) );
               break;      
     
           case 'remote':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => handleRemotes(data, resp, socket, context) );
+              const remoteData = data as RemoteCommand;
+              handleNPMUSERValidation(remoteData, context).then( async(resp) => handleRemotes(remoteData, resp, socket, context) );
               break;
               
           case 'push':    
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => pushToRemote(resp, context, data.remoteName) );        
+              const pushData = data as PushCommand;
+              handleNPMUSERValidation(pushData, context).then( async(resp) => pushToRemote(resp, context, pushData.remoteName) );        
               break;
           
           case 'pull':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => pullFromRemote(resp, context, data.remoteName) );      
+              const pullData = data as PullCommand;
+              handleNPMUSERValidation(pullData, context).then( async(resp) => pullFromRemote(resp, context, pullData.remoteName) );      
               break;
 
           case 'clone':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => cloneRepository( data.repoUrl, resp, context, data.branch ) );      
+              const cloneData = data as CloneCommand;
+              handleNPMUSERValidation(cloneData, context).then( async(resp) => cloneRepository( cloneData.repoUrl, resp, context, cloneData.branch ) );      
               break;
 
           case 'branch':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) =>  listBranch( resp, context, socket, data.NPMUSER.SOCKETID) );          
+              const branchData = data as CommonCommand;
+              handleNPMUSERValidation(branchData, context).then( async(resp) => listBranch( resp, context, socket, branchData.NPMUSER.SOCKETID) );          
               break;
             
           case 'createBranch': 
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) =>  createBranch( resp, context, socket, data.NPMUSER.SOCKETID, data.branchName ));          
+              const createBranchData = data as BranchCommand;
+              handleNPMUSERValidation(createBranchData, context).then( async(resp) => createBranch( resp, context, socket, createBranchData.NPMUSER.SOCKETID, createBranchData.branchName ));          
+              break;
+
+          case 'deleteBranch': 
+              const deleteBranchData = data as BranchCommand;
+              handleNPMUSERValidation(deleteBranchData, context).then( async(resp) => deleteBranch( resp, context, socket, deleteBranchData.NPMUSER.SOCKETID, deleteBranchData.branchName ));          
               break;
 
           case 'checkoutBranch':
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => checkoutBranch(resp, context, socket, data.NPMUSER.SOCKETID, data.branchName) );      
+              const checkoutBranchData = data as BranchCommand;
+              handleNPMUSERValidation(checkoutBranchData, context).then( async(resp) => checkoutBranch(resp, context, socket, checkoutBranchData.NPMUSER.SOCKETID, checkoutBranchData.branchName) );      
               break;          
           
           case 'status':  
-              handleNPMUSERValidation(data.NPMUSER, context).then( async(resp) => status( resp, context, socket, data.NPMUSER.SOCKETID ) );
+              const statusData = data as CommonCommand;
+              handleNPMUSERValidation(statusData, context).then( async(resp) => status( resp, context, socket, statusData.NPMUSER.SOCKETID ) );
               break;
            
         default:
@@ -167,9 +185,13 @@ const connectToWebSocket = ( context: vscode.ExtensionContext ) => {
       }
     });
 
-  return socket;
 
+    socket.on('connect_error', (error) => {
+      vscode.window.showInformationMessage('Error during connection.');
+      reject(null);
+    });
+
+  });
 };
-
 
 export default connectToWebSocket;

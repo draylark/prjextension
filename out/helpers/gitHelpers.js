@@ -33,6 +33,7 @@ const archiver_1 = __importDefault(require("archiver"));
 const globby_1 = __importDefault(require("globby"));
 const urlHelpers_1 = require("./urlHelpers");
 const vscode = __importStar(require("vscode"));
+const checkers_1 = require("../types/checkers");
 const packageRepository = (workspaceFolderPath) => {
     return new Promise(async (resolve, reject) => {
         const outputPath = path_1.default.join(workspaceFolderPath, 'repository.zip');
@@ -63,20 +64,29 @@ exports.packageRepository = packageRepository;
 const requestAccess = async (PAT, UID, type, data) => {
     switch (type) {
         case 'push':
-            return await (0, urlHelpers_1.handlePush)(PAT, UID, data);
+            if ((0, checkers_1.isReqPushData)(data)) {
+                return await (0, urlHelpers_1.handlePush)(PAT, UID, data);
+            }
+            ;
             break;
         case 'pull':
-            return await (0, urlHelpers_1.handlePull)(PAT, UID, data);
+            if ((0, checkers_1.isReqPullData)(data)) {
+                return await (0, urlHelpers_1.handlePull)(PAT, UID, data);
+            }
+            ;
             break;
         case 'clone':
-            return await (0, urlHelpers_1.handleClone)(PAT, UID, data);
+            if ((0, checkers_1.isReqCloneData)(data)) {
+                return await (0, urlHelpers_1.handleClone)(PAT, UID, data);
+            }
+            ;
             break;
         default:
             break;
     }
 };
 exports.requestAccess = requestAccess;
-const handlePullAccess = async (access, branch, git) => {
+const handlePullAccess = async (access, branch, git, workspaceFolderPath) => {
     try {
         const commandParts = ['pull', access, branch];
         await git.raw(commandParts);

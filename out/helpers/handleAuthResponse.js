@@ -30,23 +30,25 @@ const views_1 = require("../views/views");
 const temporalServer_1 = require("./temporalServer");
 const handleAuthResponse = async (response, FRONTENDID, context) => {
     switch (response.status) {
-        case 200: // Éxito
+        case 200: // Success
             const dataToStore = { PAT: response.data.pat, PRJACCUID: response.data.user.uid, name: response.data.user.username, email: response.data.user.email };
-            await (0, storage_1.saveAuthKeys)('R', dataToStore, context);
+            const personalUInfo = { PRJACCUID: response.data.user.uid, email: response.data.user.email };
+            await (0, storage_1.saveTemporalExtData)(dataToStore, context);
+            await (0, storage_1.savePersonalUInfo)(personalUInfo, context);
             return {
                 user: response.data.user,
                 success: true,
                 message: 'User data obtained correctly',
                 FRONTENDID
             };
-        case 404: // No registrado
+        case 404: // Email not registered
             vscode.window.showErrorMessage('The email is not registered');
             return {
                 success: false,
                 message: 'The email is not registered on PrJManager, please create an account first.',
                 FRONTENDID
             };
-        case 403: // Cuenta suspendida
+        case 403: // Account suspended
             vscode.window.showErrorMessage('The account no longer exists or has been suspended');
             return {
                 success: false,
@@ -54,11 +56,12 @@ const handleAuthResponse = async (response, FRONTENDID, context) => {
                 FRONTENDID
             };
         default:
-            // Manejar otros códigos de estado o errores inesperados
+            // Handle unexpected errors
             vscode.window.showErrorMessage('Unexpected error during authentication');
             return {
                 success: false,
-                message: 'Unexpected error during authentication'
+                message: 'Unexpected error during authentication',
+                FRONTENDID
             };
     }
 };
@@ -80,8 +83,10 @@ const handleAuthResponseAfterReset = async (response, context, socketID) => {
             views_1.currentPanel.webview.postMessage({ command: 'hideSpinner' });
             views_1.currentPanel.webview.postMessage({ command: 'showAuthResponse', authResponse: `${response.message}, you can close this window now.`, success: response.success });
         }
-        (0, storage_1.handleAuthExtUserData)(response.user, context);
+        vscode.window.showInformationMessage(response.message);
+        await (0, storage_1.handleAuthExtUserData)(response.user, context);
     }
+    ;
 };
 exports.handleAuthResponseAfterReset = handleAuthResponseAfterReset;
 //# sourceMappingURL=handleAuthResponse.js.map
