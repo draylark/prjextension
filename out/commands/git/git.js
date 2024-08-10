@@ -1,36 +1,10 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.status = exports.deleteBranch = exports.checkoutBranch = exports.createBranch = exports.listBranch = exports.cloneRepository = exports.pullFromRemote = exports.pushToRemote = exports.handleRemotes = exports.commitChanges = exports.addFilesToGit = exports.initGitRepository = void 0;
-const vscode = __importStar(require("vscode"));
-const simple_git_1 = __importDefault(require("simple-git"));
-const storage_1 = require("./storage");
-const gitHelpers_1 = require("./gitHelpers");
+const vscode = require("vscode");
+const simple_git_1 = require("simple-git");
+const storage_js_1 = require("../../helpers/storage.js");
+const gitHelpers_js_1 = require("../../helpers/gitHelpers.js");
 const fs_1 = require("fs");
 const getRemoteUrl = async (git, remoteName) => {
     const remotes = await git.getRemotes(true);
@@ -147,8 +121,8 @@ const commitChanges = async (commitMessage, status) => {
 };
 exports.commitChanges = commitChanges;
 const handleRemotes = async (data, status, socket, context) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
     if (!PAT || !UID) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
@@ -206,6 +180,7 @@ const handleRemotes = async (data, status, socket, context) => {
             catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while handling the remotes.';
                 vscode.window.showErrorMessage(`Error handling remotes: ${errorMessage}`);
+                socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
             }
             ;
         }
@@ -220,11 +195,12 @@ const handleRemotes = async (data, status, socket, context) => {
     ;
 };
 exports.handleRemotes = handleRemotes;
-const pushToRemote = async (status, context, remoteName) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+const pushToRemote = async (status, context, remoteName, taskId) => {
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
+    const token = await (0, storage_js_1.getToken)(context);
     const type = 'push';
-    if (!PAT || !UID) {
+    if (!PAT || !UID || !token) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
     }
@@ -263,9 +239,9 @@ const pushToRemote = async (status, context, remoteName) => {
             }
             ;
             const branchSummary = await git.branchLocal();
-            const filePath = await (0, gitHelpers_1.packageRepository)(workspaceFolderPath);
-            const data = { type, remoteUrl, filePath, branch: branchSummary.current, };
-            (0, gitHelpers_1.requestAccess)(PAT, UID, type, data).then(async (access) => {
+            const filePath = await (0, gitHelpers_js_1.packageRepository)(workspaceFolderPath);
+            const data = { type, remoteUrl, filePath, branch: branchSummary.current, taskId: taskId || '' };
+            (0, gitHelpers_js_1.requestAccess)(PAT, UID, token, type, data).then(async (access) => {
                 if (access.success) {
                     vscode.window.showInformationMessage(access.message || 'Push executed successfully.');
                     (0, fs_1.unlink)(filePath, (err) => { if (err) {
@@ -289,10 +265,11 @@ const pushToRemote = async (status, context, remoteName) => {
 };
 exports.pushToRemote = pushToRemote;
 const pullFromRemote = async (status, context, remoteName) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
+    const token = await (0, storage_js_1.getToken)(context);
     const type = 'pull';
-    if (!PAT || !UID) {
+    if (!PAT || !UID || !token) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
     }
@@ -333,9 +310,9 @@ const pullFromRemote = async (status, context, remoteName) => {
             ;
             const branchSummary = await git.branchLocal();
             const data = { type, remoteUrl, branch: branchSummary.current };
-            (0, gitHelpers_1.requestAccess)(PAT, UID, type, data).then(async (access) => {
+            (0, gitHelpers_js_1.requestAccess)(PAT, UID, token, type, data).then(async (access) => {
                 if (access.success) {
-                    await (0, gitHelpers_1.handlePullAccess)(access.access, branchSummary.current, git, workspaceFolderPath);
+                    await (0, gitHelpers_js_1.handlePullAccess)(access.access, branchSummary.current, git, workspaceFolderPath);
                 }
                 else {
                     vscode.window.showErrorMessage(access.message || `The server does not allow to execute the ${type}.`);
@@ -354,10 +331,11 @@ const pullFromRemote = async (status, context, remoteName) => {
 };
 exports.pullFromRemote = pullFromRemote;
 const cloneRepository = async (repoUrl, status, context, branch) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
+    const token = await (0, storage_js_1.getToken)(context);
     const type = 'clone';
-    if (!PAT || !UID) {
+    if (!PAT || !UID || !token) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
     }
@@ -368,9 +346,9 @@ const cloneRepository = async (repoUrl, status, context, branch) => {
             let workspaceFolderPath = workspaceFolder.uri.fsPath;
             const git = (0, simple_git_1.default)(workspaceFolderPath);
             const data = { type, remoteUrl: repoUrl, branch };
-            (0, gitHelpers_1.requestAccess)(PAT, UID, type, data).then(async (access) => {
+            (0, gitHelpers_js_1.requestAccess)(PAT, UID, token, type, data).then(async (access) => {
                 if (access.success) {
-                    await (0, gitHelpers_1.handleCloneAccess)(access.access, git, access.repoName, workspaceFolderPath, branch);
+                    await (0, gitHelpers_js_1.handleCloneAccess)(access.access, git, access.repoName, workspaceFolderPath, branch);
                 }
                 else {
                     vscode.window.showErrorMessage(access.message || `The server does not allow to execute the ${type}.`);
@@ -388,8 +366,8 @@ const cloneRepository = async (repoUrl, status, context, branch) => {
 };
 exports.cloneRepository = cloneRepository;
 const listBranch = async (status, context, socket, SOCKETID) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
     if (!PAT || !UID) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
@@ -428,8 +406,8 @@ const listBranch = async (status, context, socket, SOCKETID) => {
 };
 exports.listBranch = listBranch;
 const createBranch = async (status, context, socket, SOCKETID, branchName) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
     if (!PAT || !UID) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
@@ -471,8 +449,8 @@ const createBranch = async (status, context, socket, SOCKETID, branchName) => {
 };
 exports.createBranch = createBranch;
 const checkoutBranch = async (status, context, socket, SOCKETID, branchName) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
     if (!PAT || !UID) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
@@ -512,8 +490,8 @@ const checkoutBranch = async (status, context, socket, SOCKETID, branchName) => 
 };
 exports.checkoutBranch = checkoutBranch;
 const deleteBranch = async (status, context, socket, SOCKETID, branchName) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
     if (!PAT || !UID) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
@@ -562,8 +540,8 @@ const deleteBranch = async (status, context, socket, SOCKETID, branchName) => {
 };
 exports.deleteBranch = deleteBranch;
 const status = async (status, context, socket, SOCKETID) => {
-    const PAT = await (0, storage_1.getPAT)(context);
-    const UID = await (0, storage_1.getEXTDATAINFOstorage)(context);
+    const PAT = await (0, storage_js_1.getPAT)(context);
+    const UID = await (0, storage_js_1.getEXTDATAINFOstorage)(context);
     if (!PAT || !UID) {
         vscode.window.showErrorMessage('NPM user not validated.');
         return;

@@ -1,30 +1,7 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clearFullExtData = exports.clearSecretStorage = exports.saveClientsIDs = exports.getPersonaForDeletionlUInfo = exports.getPersonalUInfo = exports.savePersonalUInfo = exports.saveTemporalExtData = exports.handlePrJCUlogin = exports.handleNPMUSERValidation = exports.handleAuthExtUserData = exports.getPAT = exports.getEXTDATAINFOstorage = exports.getEXTUSERstorage = exports.getEXTDATAstorage = exports.getPATstorage = void 0;
-const vscode = __importStar(require("vscode"));
+exports.clearFullExtData = exports.clearSecretStorage = exports.saveClientsIDs = exports.getPersonaForDeletionlUInfo = exports.getPersonalUInfo = exports.savePersonalUInfo = exports.deleteToken = exports.saveToken = exports.saveTemporalExtData = exports.handlePrJCUReconnection = exports.handlePrJCUlogin = exports.handleNPMUSERValidation = exports.handleAuthExtUserData = exports.getToken = exports.getPAT = exports.getEXTDATAINFOstorage = exports.getEXTUSERstorage = exports.getEXTDATAstorage = exports.getPATstorage = void 0;
+const vscode = require("vscode");
 const getPATstorage = async (context) => {
     const secretStorage = context.secrets;
     const pat = await secretStorage.get('personalAccessToken');
@@ -91,6 +68,18 @@ const getPAT = async (context) => {
     }
 };
 exports.getPAT = getPAT;
+const getToken = async (context) => {
+    const secretStorage = context.secrets;
+    const token = await secretStorage.get('token');
+    if (token) {
+        return token;
+    }
+    else {
+        vscode.window.showInformationMessage('No extension user data found.');
+        return null;
+    }
+};
+exports.getToken = getToken;
 // Saving user data after login
 const handleAuthExtUserData = async (user, context) => {
     const { NPMUID, NPMSOCKETID, PAT, PRJACCUID, ...rest } = user;
@@ -121,7 +110,29 @@ const handleNPMUSERValidation = async (data, context) => {
 };
 exports.handleNPMUSERValidation = handleNPMUSERValidation;
 // Updating socketID and PAT after login
-const handlePrJCUlogin = async (context, socket, NEWNPMSOCKETID, newpat) => {
+const handlePrJCUlogin = async (context, NEWNPMSOCKETID, newpat, token) => {
+    const secretStorage = context.secrets;
+    const extuser = await (0, exports.getEXTUSERstorage)(context);
+    const { NPMUID, NPMSOCKETID } = extuser;
+    try {
+        if (NPMSOCKETID !== NEWNPMSOCKETID) {
+            await secretStorage.delete('EXTUSERINFO');
+            await secretStorage.delete('personalAccessToken');
+            await secretStorage.delete('token');
+            const EXTUSERINFO = { NPMUID, NPMSOCKETID: NEWNPMSOCKETID };
+            await secretStorage.store('personalAccessToken', newpat);
+            await secretStorage.store('token', token);
+            await secretStorage.store('EXTUSERINFO', JSON.stringify(EXTUSERINFO));
+        }
+        ;
+    }
+    catch (error) {
+        vscode.window.showInformationMessage('There was an error updating the user data.');
+    }
+    ;
+};
+exports.handlePrJCUlogin = handlePrJCUlogin;
+const handlePrJCUReconnection = async (context, NEWNPMSOCKETID, newpat) => {
     const secretStorage = context.secrets;
     const extuser = await (0, exports.getEXTUSERstorage)(context);
     const { NPMUID, NPMSOCKETID } = extuser;
@@ -133,29 +144,51 @@ const handlePrJCUlogin = async (context, socket, NEWNPMSOCKETID, newpat) => {
             await secretStorage.store('personalAccessToken', newpat);
             await secretStorage.store('EXTUSERINFO', JSON.stringify(EXTUSERINFO));
         }
+        ;
     }
     catch (error) {
-        console.log('hubo un error al guardar la informacion', error);
+        vscode.window.showInformationMessage('There was an error updating the user data.');
     }
+    ;
 };
-exports.handlePrJCUlogin = handlePrJCUlogin;
+exports.handlePrJCUReconnection = handlePrJCUReconnection;
 const saveTemporalExtData = async (data, context) => {
     const secretStorage = context.secrets;
     try {
         await secretStorage.store('EXTDATA', JSON.stringify(data));
     }
     catch (error) {
-        console.log('There was an error saving the information', error);
+        vscode.window.showInformationMessage('There was an error saving the information');
     }
 };
 exports.saveTemporalExtData = saveTemporalExtData;
+const saveToken = async (token, context) => {
+    const secretStorage = context.secrets;
+    try {
+        await secretStorage.store('token', token);
+    }
+    catch (error) {
+        vscode.window.showInformationMessage('There was an error saving the information');
+    }
+};
+exports.saveToken = saveToken;
+const deleteToken = async (context) => {
+    const secretStorage = context.secrets;
+    try {
+        await secretStorage.delete('token');
+    }
+    catch (error) {
+        vscode.window.showInformationMessage('There was an error deleting the token');
+    }
+};
+exports.deleteToken = deleteToken;
 const savePersonalUInfo = async (data, context) => {
     const secretStorage = context.secrets;
     try {
         await secretStorage.store('PRJUSERINFO', JSON.stringify(data));
     }
     catch (error) {
-        console.log('There was an error saving the information', error);
+        vscode.window.showInformationMessage('There was an error saving the information');
     }
 };
 exports.savePersonalUInfo = savePersonalUInfo;
@@ -190,7 +223,7 @@ const saveClientsIDs = async (data, context) => {
         await secretStorage.store('FRONTENDID', data.FRONTENDID);
     }
     catch (error) {
-        console.log('There was an error saving the information', error);
+        vscode.window.showInformationMessage('There was an error saving the information');
     }
 };
 exports.saveClientsIDs = saveClientsIDs;

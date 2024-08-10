@@ -1,36 +1,47 @@
 import * as vscode from 'vscode';
-import EventEmitter from 'events';
-import express from 'express';
-import cors from 'cors';
-import http from 'http'; // Importar el módulo HTTP
-export let server;
+// import EventEmitter from 'events';
+// import express from 'express';
+
+// import cors from 'cors';
+import EventEmitter = require('events');
+import express = require('express');
+import cors = require('cors');
+import {Server, createServer} from 'http'; 
+export let server: Server;
 
 const app = express();
 const eventEmitter = new EventEmitter();
-let port = 3002; // Asegúrate de que este puerto esté libre para usar
+
+interface Error extends globalThis.Error {
+    code: string;
+}
+
+let port = 3002; 
 
 app.use(cors({ 
     origin: '*',
     credentials: true
- })); // Configuración de CORS
+ })); 
 
-app.use(express.json()); // Middleware para parsear JSON
+app.use(express.json()); 
 
 // Rutas, middleware, etc.
 
 app.post('/receive-code', (req, res) => {
-    console.log('received code:', req.body);
     eventEmitter.emit('codeReceived', { code: req.body.code, FRONTENDTID: req.body.FRONTENDTID  });
     res.status(200).json({ message: 'Code received successfully' });
 });
 
+
+// Starts the server and returns the server object and the event emitter
 const tryStartServer = (retryCount = 0, maxRetries = 10) => {
-    server = http.createServer(app); // Crear el servidor
+    server = createServer(app); // Crear el servidor
 
     server.listen(port, () => {
         console.log(`Temporary server listening on port ${port}`);
     }).on('error', (err) => {
-        if (err.code === 'EADDRINUSE' && retryCount < maxRetries) {
+        const Error = err as Error;
+        if (Error.code === 'EADDRINUSE' && retryCount < maxRetries) {
             console.log(`Port ${port} is busy, trying port ${port + 1}`);
             port++;
             tryStartServer(retryCount + 1, maxRetries);

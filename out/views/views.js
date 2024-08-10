@@ -1,46 +1,26 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.showAuthenticatingView = exports.displayView = exports.currentPanel = void 0;
-const vscode = __importStar(require("vscode"));
-exports.currentPanel = undefined;
-const displayView = (content) => {
+const vscode = require("vscode");
+const path = require("path");
+const displayView = (ID, context) => {
     if (exports.currentPanel) {
-        exports.currentPanel.webview.html = content;
+        exports.currentPanel.webview.html = (0, exports.showAuthenticatingView)(ID, context, exports.currentPanel);
         exports.currentPanel.reveal(vscode.ViewColumn.One);
     }
     else {
         exports.currentPanel = vscode.window.createWebviewPanel('authView', 'Authenticate', vscode.ViewColumn.One, {
-            enableScripts: true
+            enableScripts: true,
+            localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'assets'))]
         });
-        exports.currentPanel.webview.html = content;
+        exports.currentPanel.webview.html = (0, exports.showAuthenticatingView)(ID, context, exports.currentPanel);
         exports.currentPanel.onDidDispose(() => { exports.currentPanel = undefined; }, null, []);
     }
 };
 exports.displayView = displayView;
-const showAuthenticatingView = (ID) => {
+const showAuthenticatingView = (ID, context, panel) => {
+    const imagePath = vscode.Uri.joinPath(context.extensionUri, 'assets', 'logo.png');
+    const imageSrc = panel.webview.asWebviewUri(imagePath);
     return `
         <!DOCTYPE html>
         <html lang="en">
@@ -82,6 +62,12 @@ const showAuthenticatingView = (ID) => {
                     margin-left: 10px;
                     font-size: 1em;
                     color: #50fa7b;
+                    cursor: pointer; /* Cambia el cursor a una mano para indicar interactividad */
+                    transition: all 0.3s ease; /* Suaviza la transición de los estilos */
+                }
+                .id span:hover, .id span:active {
+                    text-decoration: underline; /* Subraya el texto al pasar el mouse o al hacer clic */
+                    color: #4A90E2; /* Cambia el color al azul para resaltar */
                 }
                 p {
                     font-size: 1em;
@@ -123,13 +109,18 @@ const showAuthenticatingView = (ID) => {
                     display: flex;
                     align-items: center;
                 }
+
+                .icon-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px; /* Añade un espacio entre los elementos internos del flexbox */              
+                }
                 
             </style>
             <script>
                 const vscode = acquireVsCodeApi();
                 
                 window.addEventListener('message', event => {
-                    console.log("Mensaje recibido:", event.data);
                     const message = event.data;
                     switch (message.command) {
                         case 'updateId':
@@ -156,7 +147,12 @@ const showAuthenticatingView = (ID) => {
         </head>
             <body>
                 <div class="container">
-                    <h4>PrJManager Extension</h4>
+
+                    <div class="icon-title">
+                        <img src="${imageSrc}" alt="PrJManager logo" width="30" height="30">
+                        <h4>PrJManager Extension</h4>
+                    </div>
+                    
 
                     <div class="header">
                         <h1>Authenticate</h1>
@@ -166,20 +162,39 @@ const showAuthenticatingView = (ID) => {
 
                     <div class="id">
                         <h2>Extension ID:</h2>
-                        <span>${ID}</span>
+                        <span id="extensionID" onclick="copyToClipboard()" style="cursor: pointer;">
+                            ${ID}
+                        </span>
                     </div>
 
                     <div class="instructions-title">Authentication Instructions:</div>
                     <div class="instructions">
-                        1. Install the PrJManager interactive console by running <span class='highlighted-text'>'npm install prjmanager'</span> in the command line.<br>
+                        1. Install the PrJManager interactive console by running <span class='highlighted-text'>'npm install prjconsole'</span> in the command line.<br>
                         2. Execute the command <span class='highlighted-text'>'prj init'</span> in the command line.<br>
-                        3. Choose the <span class='highlighted-text'>'register'</span> option.<br>
-                        4. Copy and enter the extension ID when prompted.<br>
-                        5. Choose the <span class='highlighted-text'>'authenticate'</span> option.<br>
-                        6. Authenticate with the email address you used to create your account on PrJManager.<br>
-                    </div>
-                                 
+                        3. Copy and enter the extension ID when prompted.<br>
+                        4. Select the <span class='highlighted-text'>'Authenticate'</span> option.<br>
+                        5. Authenticate with the email address you used to create your account on PrJManager.com<br>
+                        6. Once authenticated, run the "verify" command to verify that the interactive console is communicating correctly with the extension.<br>
+                    </div>                        
                 </div>
+
+                <script>
+                    function copyToClipboard() {
+                        const idElement = document.getElementById('extensionID');
+                        const range = document.createRange();
+                        range.selectNode(idElement);
+                        window.getSelection().removeAllRanges(); // Clear existing selections
+                        window.getSelection().addRange(range); // Select the text content of the span
+                        try {
+                            const successful = document.execCommand('copy');
+                            const msg = successful ? 'successful' : 'unsuccessful';
+                            console.log('Copying text command was ' + msg);
+                        } catch (err) {
+                            console.log('Oops, unable to copy', err);
+                        }
+                        window.getSelection().removeAllRanges(); // Remove selection after copy
+                    }
+                </script>
             </body>
         </html>
     `;

@@ -1,16 +1,16 @@
 import * as vscode from 'vscode';
-import { saveTemporalExtData, handleAuthExtUserData, savePersonalUInfo } from './storage';
-import { currentPanel } from '../views/views';
-import { server } from './temporalServer';
-import { Response } from '../types/auth_interfaces';
-import { AuthResponseHandling, PersistanceData} from '../types/auth_interfaces';
-
+import { saveTemporalExtData, handleAuthExtUserData, savePersonalUInfo, saveToken, deleteToken } from './storage.js';
+import { currentPanel } from '../views/views.js';
+import { server } from './temporalServer.js';
+import { Response } from '../types/auth_interfaces.js';
+import { AuthResponseHandling, PersistanceData, } from '../types/auth_interfaces.js';
 
 export const handleAuthResponse = async (response: AuthResponseHandling, FRONTENDID: string, context: vscode.ExtensionContext): Promise<Response> => {
     switch (response.status) {
         case 200: // Success
             const dataToStore = { PAT: response.data.pat, PRJACCUID: response.data.user.uid, name: response.data.user.username, email: response.data.user.email };
             const personalUInfo = { PRJACCUID: response.data.user.uid, email: response.data.user.email };
+            await saveToken(response.data.token, context);
             await saveTemporalExtData(dataToStore, context);     
             await savePersonalUInfo(personalUInfo, context); 
             return {
@@ -50,7 +50,8 @@ export const handleAuthResponse = async (response: AuthResponseHandling, FRONTEN
 
 export const handleAuthResponseAfterReset = async (response: PersistanceData, context: vscode.ExtensionContext, socketID: string) => {
     if( !response.success ) {   
-        if( server && server.listening ) { server.close(); }              
+        if( server && server.listening ) { server.close(); } 
+        await deleteToken(context);             
         if (currentPanel) {
             currentPanel.webview.postMessage({ command: 'hideSpinner' });
             currentPanel.webview.postMessage({ command: 'showAuthResponse', authResponse: response.message, success: response.success });

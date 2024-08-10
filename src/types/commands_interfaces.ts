@@ -18,6 +18,7 @@ export interface PushCommand {
     }
     command: string;
     remoteName: string;
+    taskId: string
 }
 
 export interface PullCommand {

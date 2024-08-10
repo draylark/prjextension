@@ -1,29 +1,41 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { io } from 'socket.io-client';
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-function connectToWebSocket() {
-    const socket = io('http://localhost:8081');
-    socket.on('connect', () => {
-        console.log('Conectado al servidor socket en el puerto 8081!');
-        vscode.window.showInformationMessage('Conectado al servidor socket en el puerto 8081!');
-    });
-    socket.on('disconnect', () => {
-        console.log('Desconectado del servidor socket.');
-        vscode.window.showInformationMessage('Desconectado del servidor socket.');
-    });
-    socket.on('error', (error) => {
-        console.error('Error en la conexión de socket:', error);
-        vscode.window.showErrorMessage(`Error en la conexión de socket: ${error}`);
-    });
-}
+import { authenticate } from './commands/auth/auth.js';
+import { getPersonalUInfo } from './helpers/storage.js';
+import { clearFullExtData } from './helpers/storage.js';
+import { deleteAllUData } from './commands/data/deleteAllUData.mjs';
+import { disconnectSocket, connectToWebSocket } from './sockets/connection.js';
+import { startExtension, interactiveMenu } from './commands/data/startExtension.js';
 export function activate(context) {
-    let disposable = vscode.commands.registerCommand('extension.connectToWebSocket', () => {
-        connectToWebSocket();
+    // clearFullExtData(context.secrets)
+    const subscriptions = context.subscriptions;
+    let socket;
+    // Menu Commands
+    let start = vscode.commands.registerCommand('extension.start', async () => {
+        socket = await connectToWebSocket(context);
     });
-    context.subscriptions.push(disposable);
+    let close = vscode.commands.registerCommand('extension.close', async () => {
+        disconnectSocket(socket);
+    });
+    let getPersonalInformation = vscode.commands.registerCommand('extension.personalInformation', async () => {
+        getPersonalUInfo(context);
+    });
+    let deletetPersonalInformation = vscode.commands.registerCommand('extension.deletePersonalInformation', async () => {
+        await deleteAllUData(socket, context);
+        const response = await clearFullExtData(context.secrets);
+        if (!response) {
+            return vscode.window.showInformationMessage('No personal information found.');
+        }
+        await disconnectSocket(socket);
+        socket = await connectToWebSocket(context);
+    });
+    let documentation = vscode.commands.registerCommand('extension.documentation', async () => {
+        vscode.window.showInformationMessage('Documentation is not available yet.');
+    });
+    // Authentication Command
+    let authenticateCommand = vscode.commands.registerCommand('extension.authenticate', async () => {
+        return await authenticate(context);
+    });
+    subscriptions.push(start, close, getPersonalInformation, deletetPersonalInformation, documentation, authenticateCommand, startExtension(), interactiveMenu());
 }
 // This method is called when your extension is deactivated
 export function deactivate() { }

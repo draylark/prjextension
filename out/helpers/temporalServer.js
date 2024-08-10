@@ -1,57 +1,35 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.startServer = exports.server = void 0;
-const vscode = __importStar(require("vscode"));
-const events_1 = __importDefault(require("events"));
-const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
-const http_1 = __importDefault(require("http")); // Importar el módulo HTTP
-const app = (0, express_1.default)();
-const eventEmitter = new events_1.default();
-let port = 3002; // Asegúrate de que este puerto esté libre para usar
-app.use((0, cors_1.default)({
+const vscode = require("vscode");
+// import EventEmitter from 'events';
+// import express from 'express';
+// import cors from 'cors';
+const EventEmitter = require("events");
+const express = require("express");
+const cors = require("cors");
+const http_1 = require("http");
+const app = express();
+const eventEmitter = new EventEmitter();
+let port = 3002;
+app.use(cors({
     origin: '*',
     credentials: true
-})); // Configuración de CORS
-app.use(express_1.default.json()); // Middleware para parsear JSON
+}));
+app.use(express.json());
 // Rutas, middleware, etc.
 app.post('/receive-code', (req, res) => {
-    console.log('received code:', req.body);
     eventEmitter.emit('codeReceived', { code: req.body.code, FRONTENDTID: req.body.FRONTENDTID });
     res.status(200).json({ message: 'Code received successfully' });
 });
+// Starts the server and returns the server object and the event emitter
 const tryStartServer = (retryCount = 0, maxRetries = 10) => {
-    exports.server = http_1.default.createServer(app); // Crear el servidor
+    exports.server = (0, http_1.createServer)(app); // Crear el servidor
     exports.server.listen(port, () => {
         console.log(`Temporary server listening on port ${port}`);
     }).on('error', (err) => {
-        if (err.code === 'EADDRINUSE' && retryCount < maxRetries) {
+        const Error = err;
+        if (Error.code === 'EADDRINUSE' && retryCount < maxRetries) {
             console.log(`Port ${port} is busy, trying port ${port + 1}`);
             port++;
             tryStartServer(retryCount + 1, maxRetries);

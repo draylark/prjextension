@@ -1,4 +1,4 @@
-import { User, PersistanceUser } from "./auth_types";
+import { User, PersistanceUser } from "./auth_types.js";
 
 export interface CodeReceivedResponse {
     code: string;
@@ -12,8 +12,9 @@ export interface AuthResponseHandling {
     status: number;
     data: {
         status: boolean;
-        pat: string;
         user: User;
+        pat: string;
+        token: string;    
     }
 }
 

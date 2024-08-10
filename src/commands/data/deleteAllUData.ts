@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getEXTUSERstorage, getPersonaForDeletionlUInfo, clearFullExtData } from '../../helpers/storage';
+import { getEXTUSERstorage, getPersonaForDeletionlUInfo, clearFullExtData } from '../../helpers/storage.js';
 import { Socket } from 'socket.io-client';
 
 export const deleteAllUData = async(socket: Socket, context: vscode.ExtensionContext) => {
@@ -11,7 +11,7 @@ export const deleteAllUData = async(socket: Socket, context: vscode.ExtensionCon
             if (!extdata || !PRJACCUID) { return false; }
             const { NPMUID } = extdata;
 
-            socket.emit('deleteAllUData', { NPMUID, PRJACCUID }, async(response) => {
+            socket.emit('deleteAllUData', { NPMUID, PRJACCUID }, async( response: { message: string, success: boolean }) => {
                 if ( response.success  ) {
                     vscode.window.showInformationMessage(response.message);
                     return true;

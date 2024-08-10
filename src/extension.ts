@@ -1,17 +1,17 @@
 import * as vscode from 'vscode';
-import { authenticate } from './commands/auth/auth';
+import { authenticate } from './commands/auth/auth.js';
 import { getPersonalUInfo } from './helpers/storage.js';
 import { clearFullExtData } from './helpers/storage.js';
-import { deleteAllUData } from './commands/data/deleteAllUData';
-import connectToWebSocket, { disconnectSocket } from './sockets/connection';
-import { startExtension, interactiveMenu } from './commands/data/startExtension';
-
+import { deleteAllUData } from './commands/data/deleteAllUData.js';
+import { disconnectSocket, connectToWebSocket } from './sockets/connection.js';
+import { startExtension, interactiveMenu } from './commands/data/startExtension.js';
+import { Socket } from 'socket.io-client';
 
 export function activate(context: vscode.ExtensionContext) {
 
     // clearFullExtData(context.secrets)
     const subscriptions = context.subscriptions;
-    let socket;
+    let socket: Socket;
 
     // Menu Commands
 
@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     let deletetPersonalInformation = vscode.commands.registerCommand('extension.deletePersonalInformation', async () => {
-        await deleteAllUData(socket, context)
+        await deleteAllUData(socket, context);
         const response = await clearFullExtData(context.secrets);
         if (!response) { return vscode.window.showInformationMessage('No personal information found.');}
         await disconnectSocket(socket);
@@ -45,9 +45,7 @@ export function activate(context: vscode.ExtensionContext) {
         return await authenticate(context);
     });
 
-
     subscriptions.push( start, close, getPersonalInformation, deletetPersonalInformation, documentation, authenticateCommand, startExtension(), interactiveMenu());
-
 }
 // This method is called when your extension is deactivated
 export function deactivate() {}

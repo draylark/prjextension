@@ -1,10 +1,11 @@
 import axios from 'axios';
 import * as vscode from 'vscode';
-import { currentPanel } from '../../views/views';
-import { startServer } from '../../helpers/temporalServer';
-import { handleAuthResponse } from '../../helpers/handleAuthResponse';
-import { CodeReceivedResponse } from '../../types/auth_interfaces';
-import EventEmitter from 'events';
+import { currentPanel } from '../../views/views.js';
+import { startServer } from '../../helpers/temporalServer.js';
+import { handleAuthResponse } from '../../helpers/handleAuthResponse.js';
+import { CodeReceivedResponse } from '../../types/auth_interfaces.js';
+// import EventEmitter from 'events';
+import EventEmitter = require('events');
 const AUTH_TIMEOUT = 30000; // 1 minuto por ejemplo
 
 
@@ -51,7 +52,7 @@ export const authenticate = async (context: vscode.ExtensionContext) => {
     let FRONTENDID = null;
 
     try {
-        const response1 = await axios.post('http://localhost:3000/api/auth/extension-oauth', { port, type: 'EXTAUTH' });
+        const response1 = await axios.post('https://prjmanager-backend-8759eae9cceb.herokuapp.com/api/auth/extension-oauth', { port, type: 'EXTAUTH' });
         const uri = response1.data.url;
         const userAccepted = await waitForUserDecision(uri);
 
@@ -71,7 +72,7 @@ export const authenticate = async (context: vscode.ExtensionContext) => {
         const promise = await waitForCode(eventEmitter);
 
         FRONTENDID = promise.FRONTENDTID;
-        const response2 = await axios.post('http://localhost:3000/api/auth/extension-auth-user', { code: promise.code } );
+        const response2 = await axios.post('https://prjmanager-backend-8759eae9cceb.herokuapp.com/api/auth/extension-auth-user', { code: promise.code } );
         const status = await handleAuthResponse(response2, FRONTENDID, context);
 
         server.close();
@@ -81,10 +82,10 @@ export const authenticate = async (context: vscode.ExtensionContext) => {
         server.close();
         if (axios.isAxiosError(error) && error.response) {
             // Error from axios response
-            return await handleAuthResponse(error.response, FRONTENDID, context);
+            return await handleAuthResponse(error.response, FRONTENDID as string, context);
         } else if (error && typeof error === 'object' && 'message' in error && 'success' in error) {
             // Error from the application
-            vscode.window.showErrorMessage(error.message);
+            vscode.window.showErrorMessage(error.message as string);
             return error; // Devuelve el objeto error directamente
         } else {
             // Unexpected errors

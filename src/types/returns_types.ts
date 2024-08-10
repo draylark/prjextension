@@ -1,4 +1,4 @@
-import { EXTDATA } from "./storage_types";
+import { EXTDATA } from "./storage_types.js";
 
 export type ExtDataSuccess = {
     EXECUTORID: string;

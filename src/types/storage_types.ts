@@ -20,7 +20,7 @@ export type AuthData = {
     EXECUTORID: string;
     FRONTENDID: string;
     extdata: EXTDATA;
-    PAT: string;
+    PAT?: string;
 };
 
 

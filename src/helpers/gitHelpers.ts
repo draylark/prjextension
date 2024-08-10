@@ -1,12 +1,21 @@
 import { createWriteStream, readdirSync, mkdirSync } from "fs";
-import path from "path";
-import archiver from "archiver";
-import globby from "globby";
-import { handlePull, handlePush, handleClone } from "./urlHelpers";
+// import path from "path";
+// import archiver from "archiver";
+// import globby from "globby";
+import path = require('path');
+import archiver = require('archiver');
+import globby = require('globby');
+import { handlePull, handlePush, handleClone } from "./urlHelpers.js";
 import * as vscode from 'vscode';
 import { SimpleGit } from "simple-git";
-import { ReqData } from "../types/commands_types";
-import { isReqCloneData, isReqPullData, isReqPushData } from "../types/checkers";
+import { ReqData } from "../types/commands_types.js";
+import { isReqCloneData, isReqPullData, isReqPushData } from "../types/checkers.js";
+
+
+interface Error {
+    message: string;
+}
+
 
 export const packageRepository = ( workspaceFolderPath: string ): Promise<string> => {
     return new Promise(async (resolve, reject) => {
@@ -38,37 +47,38 @@ export const packageRepository = ( workspaceFolderPath: string ): Promise<string
     });
 };
 
-export const requestAccess = async ( PAT: string, UID: string, type: string, data: ReqData ) => { 
+export const requestAccess = async ( PAT: string, UID: string, TOKEN: string, type: string, data: ReqData ) => { 
     switch (type) {
         case 'push':    
             if (isReqPushData(data)) {
-                return await handlePush(PAT, UID, data);
+                return await handlePush(PAT, UID, TOKEN, data);
             };
             break;
         case 'pull':
             if (isReqPullData(data)) {
-                return await handlePull(PAT, UID, data);
+                return await handlePull(PAT, UID, TOKEN, data);
             };
             break;   
         case 'clone':
             if (isReqCloneData(data)) {
-                return await handleClone(PAT, UID, data);
+                return await handleClone(PAT, UID, TOKEN, data);
             };
             break;
         default:
             break;
-    }
+    };
 };
 
 export const handlePullAccess = async ( access: string, branch: string, git: SimpleGit, workspaceFolderPath: string ) => {
     try {
-        const commandParts = ['pull', access, branch]; 
+        const commandParts = ['pull', '--allow-unrelated-histories', access, branch]; 
         await git.raw(commandParts);
         vscode.window.showInformationMessage('Successfully pulled from the remote repository.');
     } catch (error) {
-        // console.error('Error processing the pull request:', error);
+        const Error = error as Error;
+
         // Detect specific error of local changes that would be overwritten by merge
-        if (error.message.includes('Your local changes to the following files would be overwritten by merge')) {
+        if (Error.message.includes('Your local changes to the following files would be overwritten by merge')) {
             vscode.window.showErrorMessage('There are local changes that would be overwritten by the pull. Please commit your changes before continuing.');
         } else {
             // Show a generic error message if it's not the specific error we're looking for
@@ -98,6 +108,7 @@ export const handleCloneAccess = async ( access: string, git: SimpleGit, repoNam
             vscode.window.showInformationMessage( 'Repository cloned succesfully.' );
         };
     } catch (error) {
-        vscode.window.showErrorMessage(`Error cloning the repository: ${error.message}`);
+        const Error = error as Error;
+        vscode.window.showErrorMessage(`Error cloning the repository: ${Error.message}`);
     };
 };

@@ -1,37 +1,11 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authenticate = void 0;
-const axios_1 = __importDefault(require("axios"));
-const vscode = __importStar(require("vscode"));
-const views_1 = require("../../views/views");
-const temporalServer_1 = require("../../helpers/temporalServer");
-const handleAuthResponse_1 = require("../../helpers/handleAuthResponse");
+const axios_1 = require("axios");
+const vscode = require("vscode");
+const views_js_1 = require("../../views/views.js");
+const temporalServer_js_1 = require("../../helpers/temporalServer.js");
+const handleAuthResponse_js_1 = require("../../helpers/handleAuthResponse.js");
 const AUTH_TIMEOUT = 30000; // 1 minuto por ejemplo
 const waitForUserDecision = async (uri) => {
     return new Promise((resolve, reject) => {
@@ -60,7 +34,7 @@ const waitForCode = (eventEmitter, timeout = 30000) => {
     });
 };
 const authenticate = async (context) => {
-    const { server, eventEmitter, port } = (0, temporalServer_1.startServer)();
+    const { server, eventEmitter, port } = (0, temporalServer_js_1.startServer)();
     if (!server || !eventEmitter || !port) {
         return {
             message: 'Error starting the authentication server',
@@ -69,7 +43,7 @@ const authenticate = async (context) => {
     }
     let FRONTENDID = null;
     try {
-        const response1 = await axios_1.default.post('http://localhost:3000/api/auth/extension-oauth', { port, type: 'EXTAUTH' });
+        const response1 = await axios_1.default.post('https://prjmanager-backend-8759eae9cceb.herokuapp.com/api/auth/extension-oauth', { port, type: 'EXTAUTH' });
         const uri = response1.data.url;
         const userAccepted = await waitForUserDecision(uri);
         if (!userAccepted) {
@@ -79,14 +53,14 @@ const authenticate = async (context) => {
                 success: false
             };
         }
-        if (views_1.currentPanel) {
-            views_1.currentPanel.webview.postMessage({ command: 'hideAuthResponse' });
-            views_1.currentPanel.webview.postMessage({ command: 'showSpinner' });
+        if (views_js_1.currentPanel) {
+            views_js_1.currentPanel.webview.postMessage({ command: 'hideAuthResponse' });
+            views_js_1.currentPanel.webview.postMessage({ command: 'showSpinner' });
         }
         const promise = await waitForCode(eventEmitter);
         FRONTENDID = promise.FRONTENDTID;
-        const response2 = await axios_1.default.post('http://localhost:3000/api/auth/extension-auth-user', { code: promise.code });
-        const status = await (0, handleAuthResponse_1.handleAuthResponse)(response2, FRONTENDID, context);
+        const response2 = await axios_1.default.post('https://prjmanager-backend-8759eae9cceb.herokuapp.com/api/auth/extension-auth-user', { code: promise.code });
+        const status = await (0, handleAuthResponse_js_1.handleAuthResponse)(response2, FRONTENDID, context);
         server.close();
         return status;
     }
@@ -94,7 +68,7 @@ const authenticate = async (context) => {
         server.close();
         if (axios_1.default.isAxiosError(error) && error.response) {
             // Error from axios response
-            return await (0, handleAuthResponse_1.handleAuthResponse)(error.response, FRONTENDID, context);
+            return await (0, handleAuthResponse_js_1.handleAuthResponse)(error.response, FRONTENDID, context);
         }
         else if (error && typeof error === 'object' && 'message' in error && 'success' in error) {
             // Error from the application

@@ -6,6 +6,7 @@ export type ReqPushData = {
     remoteUrl: string,
     filePath: string,
     branch: string
+    taskId: string
 };
 
 export type ReqPullData = {

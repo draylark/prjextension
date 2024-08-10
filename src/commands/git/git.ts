@@ -2,11 +2,13 @@ import * as vscode from 'vscode';
 import { ExtensionContext } from 'vscode';
 import simpleGit from 'simple-git';
 import { SimpleGit } from 'simple-git';
-import { getPAT, getEXTDATAINFOstorage } from './storage';
+import { getPAT, getEXTDATAINFOstorage, getToken } from '../../helpers/storage.js';
 import { Socket } from 'socket.io-client';
-import { handleCloneAccess, handlePullAccess, packageRepository, requestAccess } from './gitHelpers';
+import { handleCloneAccess, handlePullAccess, packageRepository, requestAccess } from '../../helpers/gitHelpers.js';
 import { unlink } from 'fs';
-import { AddRemoteCommand, RemoveRemoteCommand, RemotesData } from '../types/commands_interfaces';
+import { AddRemoteCommand, RemoveRemoteCommand, RemotesData } from '../../types/commands_interfaces.js';
+
+
 
 const getRemoteUrl = async (git: SimpleGit, remoteName: string) => {
     const remotes = await git.getRemotes(true);
@@ -175,6 +177,7 @@ export const handleRemotes = async (data: RemotesData, status: boolean, socket: 
             } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred while handling the remotes.';
                 vscode.window.showErrorMessage(`Error handling remotes: ${errorMessage}`);
+                socket.emit('remotesList', { to: data.NPMUSER.SOCKETID, remotes: await git.getRemotes(true) });
             };
         } else {
             vscode.window.showInformationMessage('There are no folders in the workspace.');
@@ -185,13 +188,14 @@ export const handleRemotes = async (data: RemotesData, status: boolean, socket: 
 };
 
 
-export const pushToRemote = async ( status: boolean, context: ExtensionContext, remoteName: string ) => {
+export const pushToRemote = async ( status: boolean, context: ExtensionContext, remoteName: string , taskId: string ) => {
  
     const PAT = await getPAT(context);
     const UID = await getEXTDATAINFOstorage(context);
+    const token = await getToken(context);
     const type = 'push';
 
-    if (!PAT || !UID) { 
+    if ( !PAT || !UID || !token ) { 
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
     };
@@ -237,9 +241,9 @@ export const pushToRemote = async ( status: boolean, context: ExtensionContext, 
 
             const branchSummary = await git.branchLocal();
             const filePath = await packageRepository(workspaceFolderPath);         
-            const data = { type, remoteUrl, filePath, branch: branchSummary.current, };   
-
-            requestAccess( PAT, UID, type, data ).then(async ( access ) => {
+            const data = { type, remoteUrl, filePath, branch: branchSummary.current, taskId: taskId || '' };   
+            
+            requestAccess( PAT, UID, token, type, data ).then(async ( access ) => {
                 if (access.success) {
                     vscode.window.showInformationMessage( access.message || 'Push executed successfully.');
                     unlink(filePath, (err) => { if (err) { throw err; } });
@@ -259,9 +263,10 @@ export const pullFromRemote = async ( status: boolean, context: ExtensionContext
     
     const PAT = await getPAT(context);
     const UID = await getEXTDATAINFOstorage(context);
+    const token = await getToken(context);
     const type = 'pull';
 
-    if (!PAT || !UID) { 
+    if (!PAT || !UID || !token) { 
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
     };
@@ -307,7 +312,7 @@ export const pullFromRemote = async ( status: boolean, context: ExtensionContext
             const branchSummary = await git.branchLocal();
             const data = { type, remoteUrl, branch: branchSummary.current };
 
-            requestAccess(PAT, UID, type, data).then(async (access) => {
+            requestAccess(PAT, UID, token, type, data).then(async (access) => {
                 if (access.success) {
                     await handlePullAccess( access.access, branchSummary.current, git, workspaceFolderPath );
                 } else {
@@ -327,9 +332,10 @@ export const cloneRepository = async (repoUrl: string, status: boolean, context:
 
     const PAT = await getPAT(context);
     const UID = await getEXTDATAINFOstorage(context);
+    const token = await getToken(context);
     const type = 'clone';
 
-    if (!PAT || !UID) { 
+    if (!PAT || !UID || !token) { 
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
     };
@@ -341,7 +347,7 @@ export const cloneRepository = async (repoUrl: string, status: boolean, context:
             const git = simpleGit(workspaceFolderPath);      
             const data = { type, remoteUrl: repoUrl, branch };
 
-            requestAccess(PAT, UID, type, data).then( async(access) => {
+            requestAccess(PAT, UID, token, type, data).then( async(access) => {
                 if( access.success ){
                     await handleCloneAccess( access.access, git, access.repoName, workspaceFolderPath, branch );
                 } else {
@@ -361,7 +367,7 @@ export const listBranch = async (status: boolean, context: ExtensionContext, soc
 
     const PAT = await getPAT(context);
     const UID = await getEXTDATAINFOstorage(context);
-    if (!PAT || !UID) { 
+    if (!PAT || !UID ) { 
         vscode.window.showErrorMessage('NPM user not validated.');
         return;
     };

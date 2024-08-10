@@ -1,56 +1,33 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleCloneAccess = exports.handlePullAccess = exports.requestAccess = exports.packageRepository = void 0;
 const fs_1 = require("fs");
-const path_1 = __importDefault(require("path"));
-const archiver_1 = __importDefault(require("archiver"));
-const globby_1 = __importDefault(require("globby"));
-const urlHelpers_1 = require("./urlHelpers");
-const vscode = __importStar(require("vscode"));
-const checkers_1 = require("../types/checkers");
+// import path from "path";
+// import archiver from "archiver";
+// import globby from "globby";
+const path = require("path");
+const archiver = require("archiver");
+const globby = require("globby");
+const urlHelpers_js_1 = require("./urlHelpers.js");
+const vscode = require("vscode");
+const checkers_js_1 = require("../types/checkers.js");
 const packageRepository = (workspaceFolderPath) => {
     return new Promise(async (resolve, reject) => {
-        const outputPath = path_1.default.join(workspaceFolderPath, 'repository.zip');
+        const outputPath = path.join(workspaceFolderPath, 'repository.zip');
         const output = (0, fs_1.createWriteStream)(outputPath);
-        const archive = (0, archiver_1.default)('zip', { zlib: { level: 5 } });
+        const archive = archiver('zip', { zlib: { level: 5 } });
         output.on('close', () => resolve(outputPath));
         output.on('error', (err) => reject(err));
         archive.on('error', (err) => reject(err));
         try {
             // Utiliza globby para obtener todos los archivos y carpetas, incluyendo .git
-            const files = await (0, globby_1.default)(['**', '**/.*'], {
+            const files = await globby(['**', '**/.*'], {
                 cwd: workspaceFolderPath,
-                dot: true, // Esto incluye archivos y carpetas que comienzan con un punto (.)
+                dot: true,
                 ignore: ['repository.zip'] // Ignora el propio archivo ZIP que se está creando
             });
             files.forEach(file => {
-                archive.file(path_1.default.join(workspaceFolderPath, file), { name: file });
+                archive.file(path.join(workspaceFolderPath, file), { name: file });
             });
             archive.pipe(output);
             archive.finalize();
@@ -61,41 +38,42 @@ const packageRepository = (workspaceFolderPath) => {
     });
 };
 exports.packageRepository = packageRepository;
-const requestAccess = async (PAT, UID, type, data) => {
+const requestAccess = async (PAT, UID, TOKEN, type, data) => {
     switch (type) {
         case 'push':
-            if ((0, checkers_1.isReqPushData)(data)) {
-                return await (0, urlHelpers_1.handlePush)(PAT, UID, data);
+            if ((0, checkers_js_1.isReqPushData)(data)) {
+                return await (0, urlHelpers_js_1.handlePush)(PAT, UID, TOKEN, data);
             }
             ;
             break;
         case 'pull':
-            if ((0, checkers_1.isReqPullData)(data)) {
-                return await (0, urlHelpers_1.handlePull)(PAT, UID, data);
+            if ((0, checkers_js_1.isReqPullData)(data)) {
+                return await (0, urlHelpers_js_1.handlePull)(PAT, UID, TOKEN, data);
             }
             ;
             break;
         case 'clone':
-            if ((0, checkers_1.isReqCloneData)(data)) {
-                return await (0, urlHelpers_1.handleClone)(PAT, UID, data);
+            if ((0, checkers_js_1.isReqCloneData)(data)) {
+                return await (0, urlHelpers_js_1.handleClone)(PAT, UID, TOKEN, data);
             }
             ;
             break;
         default:
             break;
     }
+    ;
 };
 exports.requestAccess = requestAccess;
 const handlePullAccess = async (access, branch, git, workspaceFolderPath) => {
     try {
-        const commandParts = ['pull', access, branch];
+        const commandParts = ['pull', '--allow-unrelated-histories', access, branch];
         await git.raw(commandParts);
         vscode.window.showInformationMessage('Successfully pulled from the remote repository.');
     }
     catch (error) {
-        // console.error('Error processing the pull request:', error);
+        const Error = error;
         // Detect specific error of local changes that would be overwritten by merge
-        if (error.message.includes('Your local changes to the following files would be overwritten by merge')) {
+        if (Error.message.includes('Your local changes to the following files would be overwritten by merge')) {
             vscode.window.showErrorMessage('There are local changes that would be overwritten by the pull. Please commit your changes before continuing.');
         }
         else {
@@ -123,7 +101,7 @@ const handleCloneAccess = async (access, git, repoName, workspaceFolderPath, bra
         }
         else {
             // The directory is not empty, create a new directory with the name of the repository
-            workspaceFolderPath = path_1.default.join(workspaceFolderPath, repoName);
+            workspaceFolderPath = path.join(workspaceFolderPath, repoName);
             (0, fs_1.mkdirSync)(workspaceFolderPath, { recursive: true });
             await git.clone(access, workspaceFolderPath, cloneOptions);
             vscode.window.showInformationMessage('Repository cloned succesfully.');
@@ -131,7 +109,8 @@ const handleCloneAccess = async (access, git, repoName, workspaceFolderPath, bra
         ;
     }
     catch (error) {
-        vscode.window.showErrorMessage(`Error cloning the repository: ${error.message}`);
+        const Error = error;
+        vscode.window.showErrorMessage(`Error cloning the repository: ${Error.message}`);
     }
     ;
 };
