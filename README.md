@@ -39,7 +39,9 @@ This architecture allows for real-time, modular, and secure interaction between 
 npm install prjconsole
 ```
 
-##🔗 Component Interaction Overview
+
+## 🔗 Component Interaction Overview
+
 
 [User] ⇨ [VSCode Extension] ⇄ [WebSocket Server] ⇄ [PrJConsole CLI] ⇄ [PrJManager]
 
