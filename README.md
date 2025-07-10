@@ -3,7 +3,7 @@
 
 # PrJExtension 🧩
 
-**PrJExtension** is a custom Visual Studio Code extension designed to integrate seamlessly with [PrJManager](https://github.com/your-username/PrJManager), a centralized project management platform. It allows developers to interact with remote repositories, execute real-time commands, and manage workflows directly from within the editor.
+**PrJExtension** is a custom Visual Studio Code extension designed to integrate seamlessly with [PrJManager](https://github.com/nemrodc/PrJManager), a centralized project management platform. It allows developers to interact with remote repositories, execute real-time commands, and manage workflows directly from within the editor.
 
 ## ✨ Features
 
