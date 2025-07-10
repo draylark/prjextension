@@ -54,5 +54,5 @@ npm install prjconsole
 - **Communication:** WebSockets
 - **Auth-ready:** OAuth2 / Custom token systems
 - **Companion Services:**  
-  - [PrJManager](https://github.com/nemrodc/PrJManager) – Frontend platform  
+  - [PrJManager](https://github.com/nemrodc/PrJManager-Frontend) – Frontend platform  
   - PrJConsole – interactive CLI layer built into the extension
